@@ -13,6 +13,7 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - **Path-based routing**: Route traffic to different services based on URL paths (e.g., `/customers` → customers service, `/bookings` → bookings service)
 - **Independent scaling**: Each service can have different CPU, memory, and replica configurations
 - **Service isolation**: Separate ECS clusters and target groups for each service
+- **Per-service Redis**: Optional Redis cluster per service for rate limiting, caching, and session storage
 
 ### 🌐 Multi-Region High Availability
 
@@ -81,6 +82,7 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - [DP_RESILIENCE_SETUP.md](DP_RESILIENCE_SETUP.md): Data plane resilience configuration
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): Service deployment and management
 - [LOGGING_SETUP.md](LOGGING_SETUP.md): CloudWatch log streaming configuration
+- [REDIS_SETUP.md](REDIS_SETUP.md): Redis (ElastiCache) configuration for rate limiting and caching
 
 ## Architecture
 
@@ -190,6 +192,7 @@ This CDK project deploys two types of stacks:
 - **CloudWatch Log Groups**: Separate log groups per service
 - **S3 Bucket**: Optional bucket for DP resilience configuration backup
 - **Secrets Manager**: Client certificates for mTLS with Kong Konnect
+- **Redis (ElastiCache)**: Optional per-service Redis cluster for rate limiting, caching, and session storage (disabled by default)
 
 #### External Components
 

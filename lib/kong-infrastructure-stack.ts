@@ -206,6 +206,5 @@ export class KongInfrastructureStack extends cdk.Stack {
                 exportName: 'KongInfrastructure-CertificateArn',
             });
         }
-
     }
 }

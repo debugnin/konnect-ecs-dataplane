@@ -37,8 +37,7 @@ interface ServiceConfig {
 
 // Default Kong image applied to all services unless overridden by SERVICE{N}_IMAGE_URI
 const defaultKongImage =
-    app.node.tryGetContext('defaultKongImage') ||
-    process.env.KONG_DEFAULT_IMAGE;
+    app.node.tryGetContext('defaultKongImage') || process.env.KONG_DEFAULT_IMAGE;
 
 // Parse services from environment or context
 // Format: SERVICE1_NAME=customers,SERVICE1_PATH=/customers,SERVICE1_SECRET_ARN=arn:...,SERVICE2_NAME=...
@@ -89,7 +88,7 @@ for (let serviceIndex = 1; serviceIndex <= 100; serviceIndex++) {
             if (!uri) {
                 throw new Error(
                     `Container image is required for service ${serviceIndex}. ` +
-                    `Set KONG_DEFAULT_IMAGE or SERVICE${serviceIndex}_IMAGE_URI.`
+                        `Set KONG_DEFAULT_IMAGE or SERVICE${serviceIndex}_IMAGE_URI.`
                 );
             }
             return uri;
@@ -250,8 +249,7 @@ const ecsTaskRoleArn =
 // When set, each service stack creates a scoped IAM role that the pipeline can assume
 // to call `aws cloudformation update-stack` with a new ContainerImage value.
 const pluginDeployRoleArn =
-    app.node.tryGetContext('pluginDeployRoleArn') ||
-    process.env.PLUGIN_DEPLOY_ROLE_ARN;
+    app.node.tryGetContext('pluginDeployRoleArn') || process.env.PLUGIN_DEPLOY_ROLE_ARN;
 
 // Deploy service stacks (depends on infrastructure stack)
 const serviceStacks: KongServiceStack[] = [];
@@ -262,7 +260,9 @@ services.forEach((service, index) => {
         : `kong-${service.appName}-service-stack-${environment}`;
 
     if (!infraStack.albConstruct.httpsListener) {
-        throw new Error('HTTPS listener (port 443) is required - certificate must be provided');
+        throw new Error(
+            'HTTPS listener (port 443) is required - certificate must be provided'
+        );
     }
 
     const mtlsListenerArn = infraStack.albConstruct.httpsListener.listenerArn;
@@ -319,6 +319,57 @@ services.forEach((service, index) => {
             kmsKeyArn:
                 app.node.tryGetContext('dpResilienceKmsKeyArn') ||
                 process.env.DP_RESILIENCE_KMS_KEY_ARN,
+        },
+        redis: {
+            enabled:
+                (app.node.tryGetContext(`service${index + 1}RedisEnabled`) ||
+                    process.env[`SERVICE${index + 1}_REDIS_ENABLED`] ||
+                    'false') === 'true',
+            nodeType:
+                app.node.tryGetContext(`service${index + 1}RedisNodeType`) ||
+                process.env[`SERVICE${index + 1}_REDIS_NODE_TYPE`] ||
+                'cache.t4g.micro',
+            numCacheNodes: Number(
+                app.node.tryGetContext(`service${index + 1}RedisNumCacheNodes`) ||
+                    process.env[`SERVICE${index + 1}_REDIS_NUM_CACHE_NODES`] ||
+                    1
+            ),
+            engineVersion:
+                app.node.tryGetContext(`service${index + 1}RedisEngineVersion`) ||
+                process.env[`SERVICE${index + 1}_REDIS_ENGINE_VERSION`] ||
+                '7.0',
+            parameterGroupFamily:
+                app.node.tryGetContext(`service${index + 1}RedisParameterGroupFamily`) ||
+                process.env[`SERVICE${index + 1}_REDIS_PARAMETER_GROUP_FAMILY`] ||
+                'redis7',
+            encryptionAtRest:
+                (app.node.tryGetContext(`service${index + 1}RedisEncryptionAtRest`) ||
+                    process.env[`SERVICE${index + 1}_REDIS_ENCRYPTION_AT_REST`] ||
+                    'true') === 'true',
+            encryptionInTransit:
+                (app.node.tryGetContext(`service${index + 1}RedisEncryptionInTransit`) ||
+                    process.env[`SERVICE${index + 1}_REDIS_ENCRYPTION_IN_TRANSIT`] ||
+                    'true') === 'true',
+            multiAz:
+                (app.node.tryGetContext(`service${index + 1}RedisMultiAz`) ||
+                    process.env[`SERVICE${index + 1}_REDIS_MULTI_AZ`] ||
+                    'false') === 'true',
+            authToken:
+                app.node.tryGetContext(`service${index + 1}RedisAuthToken`) ||
+                process.env[`SERVICE${index + 1}_REDIS_AUTH_TOKEN`],
+            snapshotRetentionDays: Number(
+                app.node.tryGetContext(`service${index + 1}RedisSnapshotRetentionDays`) ||
+                    process.env[`SERVICE${index + 1}_REDIS_SNAPSHOT_RETENTION_DAYS`] ||
+                    5
+            ),
+            snapshotWindow:
+                app.node.tryGetContext(`service${index + 1}RedisSnapshotWindow`) ||
+                process.env[`SERVICE${index + 1}_REDIS_SNAPSHOT_WINDOW`] ||
+                '03:00-05:00',
+            maintenanceWindow:
+                app.node.tryGetContext(`service${index + 1}RedisMaintenanceWindow`) ||
+                process.env[`SERVICE${index + 1}_REDIS_MAINTENANCE_WINDOW`] ||
+                'sun:05:00-sun:07:00',
         },
     });
 

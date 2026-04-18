@@ -8,6 +8,7 @@ import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { LoggingConstruct } from './constructs/logging-construct';
 import { DataPlaneResilienceConstruct } from './constructs/dp-resilience-construct';
+import { RedisConstruct } from './constructs/redis-construct';
 
 export interface KongServiceStackProps extends cdk.StackProps {
     // System and environment for naming conventions
@@ -58,6 +59,22 @@ export interface KongServiceStackProps extends cdk.StackProps {
         configPrefix?: string;
         kmsKeyArn?: string;
     };
+
+    // Redis Configuration (ElastiCache) - Per Service
+    redis?: {
+        enabled?: boolean;
+        nodeType?: string;
+        numCacheNodes?: number;
+        engineVersion?: string;
+        parameterGroupFamily?: string;
+        encryptionAtRest?: boolean;
+        encryptionInTransit?: boolean;
+        multiAz?: boolean;
+        authToken?: string;
+        snapshotRetentionDays?: number;
+        snapshotWindow?: string;
+        maintenanceWindow?: string;
+    };
 }
 
 export class KongServiceStack extends cdk.Stack {
@@ -67,6 +84,7 @@ export class KongServiceStack extends cdk.Stack {
     public readonly backupService?: ecs.FargateService;
     public readonly loggingConstruct?: LoggingConstruct;
     public readonly dpResilienceConstruct?: DataPlaneResilienceConstruct;
+    public readonly redisConstruct?: RedisConstruct;
     public dpLogGroup!: logs.LogGroup;
     public backupLogGroup?: logs.LogGroup;
 
@@ -179,6 +197,34 @@ export class KongServiceStack extends cdk.Stack {
 
             // Create Backup Node (1 replica, exports config, no traffic)
             this.backupService = this.createBackupNode(this.ecsCluster, konnectSecret);
+        }
+
+        // Create optional Redis cluster for this service (ElastiCache)
+        if (props.redis?.enabled) {
+            // Get ECS service security group to allow Redis access
+            const ecsSecurityGroup = new ec2.SecurityGroup(this, 'EcsSecurityGroup', {
+                vpc,
+                description: `Security group for Kong ECS service ${this.appName} (${this.environmentName})`,
+                securityGroupName: `kong-${this.appName}-ecs-sg-${this.environmentName}`,
+            });
+
+            this.redisConstruct = new RedisConstruct(this, 'RedisConstruct', {
+                vpc,
+                environment: this.environmentName,
+                appName: this.appName, // Pass appName for per-service naming
+                nodeType: props.redis.nodeType,
+                numCacheNodes: props.redis.numCacheNodes,
+                engineVersion: props.redis.engineVersion,
+                parameterGroupFamily: props.redis.parameterGroupFamily,
+                encryptionAtRest: props.redis.encryptionAtRest,
+                encryptionInTransit: props.redis.encryptionInTransit,
+                multiAz: props.redis.multiAz,
+                authToken: props.redis.authToken,
+                snapshotRetentionDays: props.redis.snapshotRetentionDays,
+                snapshotWindow: props.redis.snapshotWindow,
+                maintenanceWindow: props.redis.maintenanceWindow,
+                allowedSecurityGroups: [ecsSecurityGroup],
+            });
         }
 
         // Create Regular Data Plane (handles traffic, imports config if CP down)
