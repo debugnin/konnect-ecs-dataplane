@@ -6,16 +6,81 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 
 ## Features
 
-- ✅ **Multi-Region Support**: Deploy to Sydney (primary) and Melbourne (secondary) with Route53 failover
-- ✅ **High Availability**: ECS Fargate with multiple availability zones
-- ✅ **Security**: WAF, mTLS, and custom headers
-- ✅ **Monitoring**: CloudWatch logs, metrics streaming to New Relic
-- ✅ **DP Resilience**: S3-backed configuration for control plane outages
-- ✅ **Multi-Service**: Support for multiple Kong services with path-based routing
+### 🌍 Multi-Service Architecture
 
-> 📖 For multi-region deployment, see [MULTI_REGION_SETUP.md](MULTI_REGION_SETUP.md)
->
-> 🔒 For WAF and CIDR restriction configuration, see [WAF_CONFIGURATION.md](WAF_CONFIGURATION.md)
+- **One shared infrastructure stack**: VPC, ALB, and WAF shared across all services
+- **Multiple service stacks**: Each service gets its own ECS cluster with dedicated Kong containers
+- **Path-based routing**: Route traffic to different services based on URL paths (e.g., `/customers` → customers service, `/bookings` → bookings service)
+- **Independent scaling**: Each service can have different CPU, memory, and replica configurations
+- **Service isolation**: Separate ECS clusters and target groups for each service
+
+### 🌐 Multi-Region High Availability
+
+- **Primary & secondary regions**: Deploy to any two AWS regions for geographic redundancy
+- **Automated Route53 failover**: Primary region creates health checks, secondary region acts as standby
+- **Independent regional ALBs**: Each region has its own complete infrastructure stack
+- **1-2 minute failover**: Automatic detection and failover when primary health check fails
+- **No manual configuration**: Routes, health checks, and failover policies are automatically configured
+- See [MULTI_REGION_SETUP.md](MULTI_REGION_SETUP.md) for details
+
+### 🔒 Security
+
+- **WAF protection**: Rate limiting, AWS Managed Rules, and custom IP restrictions
+- **CIDR allowlists**: Restrict access to specific IP ranges (enabled by default)
+- **mTLS authentication**: Mutual TLS with Kong Konnect Control Plane
+- **Secrets management**: Client certificates securely stored in AWS Secrets Manager
+- **Private networking**: Data plane containers run in private subnets
+- **VPC endpoints**: Secure access to AWS services without internet gateway
+- **IAM least privilege**: Separate task execution and task roles with minimal permissions
+- See [WAF_CONFIGURATION.md](WAF_CONFIGURATION.md) for WAF setup
+
+### 🛡️ Data Plane Resilience
+
+- **S3 configuration backup**: Control plane config automatically exported to S3
+- **CP outage recovery**: New DP nodes can start during control plane outages by reading from S3
+- **Dedicated backup nodes**: Separate backup node exports config (not serving traffic)
+- **Leader election**: Multiple backup nodes coordinate via S3-based leader election
+- **Automatic fallback**: DP nodes check S3 when unable to reach control plane
+- **KMS encryption**: Optional S3 bucket encryption with customer-managed keys
+- See [DP_RESILIENCE_SETUP.md](DP_RESILIENCE_SETUP.md) for configuration
+
+### 🏗️ Infrastructure Components
+
+- **VPC**: Configurable CIDR, multi-AZ, public/private subnets
+- **VPC Flow Logs**: Traffic logging to CloudWatch for security auditing
+- **VPC Endpoints**: Secure access to S3, Secrets Manager, ECR, CloudWatch
+- **Transit Gateway**: Optional integration for hybrid cloud connectivity
+- **NAT Gateways**: Configurable number for private subnet internet access
+- **Application Load Balancer**: Regional ALB with HTTPS/mTLS listeners
+- **ACM Certificates**: Automatic certificate validation via Route53
+- **Route53 DNS**: Automated failover records with health checks
+
+### 📊 Monitoring & Logging
+
+- **CloudWatch Logs**: Separate log groups per service (`/ecs/kong-{service}-dataplane`)
+- **VPC Flow Logs**: Network traffic analysis and security monitoring
+- **Log streaming**: Optional subscription filters to central logging account
+- **Health checks**: ALB health checks on Kong status endpoint (port 8100)
+- **ECS Container Insights**: Task and container-level metrics
+- **Configurable log levels**: Per-service Kong log level configuration
+
+### 🔧 Deployment & Operations
+
+- **CloudFormation parameters**: Update container images without CDK redeployment
+- **Cross-account deployments**: Support for plugin deployment from separate accounts
+- **Environment-based naming**: Resources tagged with environment (dev, qa, uat, prd)
+- **Regional suffixes**: Clear stack naming for multi-region deployments
+- **CDK Stack Synthesizer**: Custom qualifier for bootstrap isolation
+- See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for deployment workflows
+
+### 📝 Documentation
+
+- [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md): Resource naming patterns and conventions
+- [MULTI_REGION_SETUP.md](MULTI_REGION_SETUP.md): Multi-region deployment guide
+- [WAF_CONFIGURATION.md](WAF_CONFIGURATION.md): WAF and CIDR restriction setup
+- [DP_RESILIENCE_SETUP.md](DP_RESILIENCE_SETUP.md): Data plane resilience configuration
+- [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): Service deployment and management
+- [LOGGING_SETUP.md](LOGGING_SETUP.md): CloudWatch log streaming configuration
 
 ## Architecture
 
@@ -101,13 +166,35 @@ graph TB
 
 ### Components
 
-- **Control Plane**: Kong Konnect (SaaS)
-- **Data Plane**: Kong Gateway containers on ECS Fargate
-- **Infrastructure Stack**: VPC, ALB, WAF (created first)
-- **ECS Stack**: ECS Cluster, Services, and Tasks (depends on infrastructure)
-- **Load Balancer**: Application Load Balancer for traffic routing
-- **Security**: AWS Secrets Manager for client certificates
-- **Networking**: VPC with public/private subnets
+This CDK project deploys two types of stacks:
+
+#### Infrastructure Stack (Shared)
+
+- **VPC**: Multi-AZ VPC with public/private subnets, configurable CIDR
+- **VPC Flow Logs**: CloudWatch logging for network traffic analysis
+- **VPC Endpoints**: Secure access to S3, Secrets Manager, ECR, CloudWatch
+- **NAT Gateways**: Configurable number for private subnet internet access
+- **Transit Gateway**: Optional integration for hybrid cloud connectivity
+- **Application Load Balancer**: Regional ALB with HTTPS (443) and mTLS listeners
+- **ACM Certificate**: Automatic SSL/TLS certificate with Route53 validation
+- **Route53 Records**: Automated failover records with health checks (multi-region)
+- **WAF**: Web Application Firewall with rate limiting, AWS Managed Rules, CIDR restrictions
+
+#### Service Stacks (Per Service)
+
+- **ECS Cluster**: Dedicated cluster for each service (e.g., `kong-customers-ecscluster-dev`)
+- **ECS Service**: Fargate service with configurable CPU, memory, and replicas
+- **Kong Data Plane Containers**: Main DP nodes serving traffic (registered with ALB)
+- **Kong Backup Container**: Optional backup node for DP resilience (exports config to S3)
+- **Target Group**: Path-based routing to service (e.g., `/customers/*`)
+- **CloudWatch Log Groups**: Separate log groups per service
+- **S3 Bucket**: Optional bucket for DP resilience configuration backup
+- **Secrets Manager**: Client certificates for mTLS with Kong Konnect
+
+#### External Components
+
+- **Kong Konnect Control Plane**: Managed SaaS control plane (configuration, routing, plugins)
+- **Kong Konnect Telemetry Plane**: Managed SaaS telemetry collection for metrics and traces
 
 ## Prerequisites
 
@@ -171,6 +258,7 @@ graph TB
 | `ALB_DOMAIN`                  | Custom domain for ALB                      | No       |
 | `ALB_HOSTED_ZONE_ID`          | Route 53 Hosted Zone ID for ALB            | No       |
 | `ALB_HOSTED_ZONE_NAME`        | Route 53 Hosted Zone Name for ALB          | No       |
+
 **Note**: Use `SERVICE{N}_*` variables where `{N}` is the service number (1, 2, 3, etc.). IAM role creation is not supported - you must provide pre-existing ECS Task Execution and Task Role ARNs (shared across all services).
 
 **\*\*REGIONAL_SUFFIX**: Automatically set by the pipeline to `secondary` for Melbourne deployment. Primary region (Sydney) uses default stack names without suffix. For manual deployments to secondary region, set `REGIONAL_SUFFIX=secondary`.
@@ -213,12 +301,12 @@ The AWS Secrets Manager secret must contain:
 
 ```json
 {
-  "certificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
-  "private_key": "-----BEGIN EC PRIVATE KEY-----\n...\n-----END EC PRIVATE KEY-----\n",
-  "control_plane_group_endpoint": "<your-cp-id>.region.cp0.konghq.com:443",
-  "cluster_server_name": "<your-cp-id>.region.cp0.konghq.com",
-  "telemetry_endpoint": "<your-cp-id>.region.tp0.konghq.com:443",
-  "telemetry_server_name": "<your-cp-id>.region.tp0.konghq.com"
+    "certificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n",
+    "private_key": "-----BEGIN EC PRIVATE KEY-----\n...\n-----END EC PRIVATE KEY-----\n",
+    "control_plane_group_endpoint": "<your-cp-id>.region.cp0.konghq.com:443",
+    "cluster_server_name": "<your-cp-id>.region.cp0.konghq.com",
+    "telemetry_endpoint": "<your-cp-id>.region.tp0.konghq.com:443",
+    "telemetry_server_name": "<your-cp-id>.region.tp0.konghq.com"
 }
 ```
 
