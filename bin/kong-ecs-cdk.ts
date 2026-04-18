@@ -1,0 +1,328 @@
+#!/usr/bin/env node
+
+import * as cdk from 'aws-cdk-lib';
+import { KongServiceStack } from '../lib/kong-service-stack';
+import { KongInfrastructureStack } from '../lib/kong-infrastructure-stack';
+
+const app = new cdk.App();
+
+// Get environment for naming conventions
+// Environment: dev, qa, uat, prd
+const environment = app.node.tryGetContext('environment') || process.env.ENVIRONMENT;
+if (!environment) {
+    throw new Error('ENVIRONMENT is required (dev, qa, uat, prd)');
+}
+
+// Validate environment value
+const validEnvironments = ['dev', 'qa', 'uat', 'prd'];
+
+if (!validEnvironments.includes(environment)) {
+    throw new Error(
+        `Invalid ENVIRONMENT: ${environment}. Must be one of: ${validEnvironments.join(', ')}`
+    );
+}
+
+// Service configuration - can specify multiple services
+// Note: appName is used as the system identifier in resource naming
+interface ServiceConfig {
+    appName: string;
+    pathPrefix: string;
+    secretArn: string;
+    cpu?: number;
+    memory?: number;
+    replicas?: number;
+    logLevel?: string;
+    imageUri?: string;
+}
+
+// Default Kong image applied to all services unless overridden by SERVICE{N}_IMAGE_URI
+const defaultKongImage =
+    app.node.tryGetContext('defaultKongImage') ||
+    process.env.KONG_DEFAULT_IMAGE;
+
+// Parse services from environment or context
+// Format: SERVICE1_NAME=customers,SERVICE1_PATH=/customers,SERVICE1_SECRET_ARN=arn:...,SERVICE2_NAME=...
+const services: ServiceConfig[] = [];
+for (let serviceIndex = 1; serviceIndex <= 100; serviceIndex++) {
+    const serviceName =
+        app.node.tryGetContext(`service${serviceIndex}Name`) ||
+        process.env[`SERVICE${serviceIndex}_NAME`];
+    const pathPrefix =
+        app.node.tryGetContext(`service${serviceIndex}Path`) ||
+        process.env[`SERVICE${serviceIndex}_PATH`];
+    const secretArn =
+        app.node.tryGetContext(`service${serviceIndex}SecretArn`) ||
+        process.env[`SERVICE${serviceIndex}_SECRET_ARN`];
+
+    if (!serviceName || !pathPrefix || !secretArn) {
+        continue;
+    }
+
+    services.push({
+        appName: serviceName,
+        pathPrefix,
+        secretArn,
+        cpu: Number(
+            app.node.tryGetContext(`service${serviceIndex}Cpu`) ||
+                process.env[`SERVICE${serviceIndex}_CPU`] ||
+                512
+        ),
+        memory: Number(
+            app.node.tryGetContext(`service${serviceIndex}Memory`) ||
+                process.env[`SERVICE${serviceIndex}_MEMORY`] ||
+                1024
+        ),
+        replicas: Number(
+            app.node.tryGetContext(`service${serviceIndex}Replicas`) ||
+                process.env[`SERVICE${serviceIndex}_REPLICAS`] ||
+                2
+        ),
+        logLevel:
+            app.node.tryGetContext(`service${serviceIndex}LogLevel`) ||
+            process.env[`SERVICE${serviceIndex}_LOG_LEVEL`] ||
+            undefined,
+        imageUri: (() => {
+            const uri =
+                app.node.tryGetContext(`service${serviceIndex}ImageUri`) ||
+                process.env[`SERVICE${serviceIndex}_IMAGE_URI`] ||
+                defaultKongImage;
+            if (!uri) {
+                throw new Error(
+                    `Container image is required for service ${serviceIndex}. ` +
+                    `Set KONG_DEFAULT_IMAGE or SERVICE${serviceIndex}_IMAGE_URI.`
+                );
+            }
+            return uri;
+        })(),
+    });
+}
+
+if (services.length === 0) {
+    throw new Error(
+        'At least one service must be configured. Set SERVICE1_NAME, SERVICE1_PATH, and SERVICE1_SECRET_ARN'
+    );
+}
+
+// Parameterise stack names following naming convention
+// Infrastructure is shared, so use "kong" as the system name
+// Service stacks use the appName as the system identifier
+const regionalSuffix =
+    app.node.tryGetContext('regionalSuffix') || process.env.REGIONAL_SUFFIX || '';
+const infraStackName = regionalSuffix
+    ? `kong-infra-stack-${environment}-${regionalSuffix}`
+    : `kong-infra-stack-${environment}`;
+
+const env = {
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+    region: process.env.CDK_DEFAULT_REGION,
+};
+
+const synthesizer = new cdk.DefaultStackSynthesizer({
+    qualifier:
+        app.node.tryGetContext('qualifier') || process.env.CDK_QUALIFIER || 'konginfra',
+});
+
+const albDomain = app.node.tryGetContext('albDomain') || process.env.ALB_DOMAIN;
+
+// Deploy infrastructure stack (VPC, ALB, WAF)
+// Note: IAM roles are now managed centrally in the kong-iam project.
+// Provide role ARNs via environment variables or CDK context.
+const infraStack = new KongInfrastructureStack(app, infraStackName, {
+    env,
+    synthesizer,
+    environment,
+    vpc: {
+        vpcCidr: app.node.tryGetContext('vpcCidr') || process.env.VPC_CIDR,
+        maxAzs: Number(
+            app.node.tryGetContext('vpcMaxAzs') || process.env.VPC_MAX_AZS || 2
+        ),
+        natGateways: Number(
+            app.node.tryGetContext('vpcNatGateways') || process.env.VPC_NAT_GATEWAYS || 1
+        ),
+        enableFlowLogs:
+            (app.node.tryGetContext('vpcEnableFlowLogs') ||
+                process.env.VPC_ENABLE_FLOW_LOGS ||
+                'true') === 'true',
+        flowLogRoleArn:
+            app.node.tryGetContext('vpcFlowLogRoleArn') ||
+            process.env.VPC_FLOW_LOG_ROLE_ARN,
+        enableVpcEndpoints:
+            (app.node.tryGetContext('vpcEnableEndpoints') ||
+                process.env.VPC_ENABLE_ENDPOINTS ||
+                'true') === 'true',
+        transitGatewayId:
+            app.node.tryGetContext('transitGatewayId') || process.env.TRANSIT_GATEWAY_ID,
+        transitGatewayRoutes: (
+            app.node.tryGetContext('transitGatewayRoutes') ||
+            process.env.TRANSIT_GATEWAY_ROUTES ||
+            ''
+        )
+            .split(',')
+            .map((cidr: string) => cidr.trim())
+            .filter((cidr: string) => cidr.length > 0),
+    },
+    certificate: albDomain
+        ? {
+              domainName: albDomain,
+              subjectAlternativeNames: (
+                  app.node.tryGetContext('albSubjectAlternativeNames') ||
+                  process.env.ALB_SUBJECT_ALTERNATIVE_NAMES ||
+                  ''
+              )
+                  .split(',')
+                  .map((name: string) => name.trim())
+                  .filter((name: string) => name.length > 0),
+              hostedZoneId:
+                  app.node.tryGetContext('albHostedZoneId') ||
+                  process.env.ALB_HOSTED_ZONE_ID,
+              hostedZoneName:
+                  app.node.tryGetContext('albHostedZoneName') ||
+                  process.env.ALB_HOSTED_ZONE_NAME,
+          }
+        : undefined,
+    waf: {
+        enabled:
+            (app.node.tryGetContext('wafEnabled') ||
+                process.env.WAF_ENABLED ||
+                'true') === 'true',
+        rateLimitPerMinute: Number(
+            app.node.tryGetContext('wafRateLimit') || process.env.WAF_RATE_LIMIT || 2000
+        ),
+        allowedCidrs: (
+            app.node.tryGetContext('wafAllowedCidrs') ||
+            process.env.WAF_ALLOWED_CIDRS ||
+            ''
+        )
+            .split(',')
+            .map((cidr: string) => cidr.trim())
+            .filter((cidr: string) => cidr.length > 0),
+        enableCidrRestriction:
+            (app.node.tryGetContext('wafEnableCidrRestriction') ||
+                process.env.WAF_ENABLE_CIDR_RESTRICTION ||
+                'true') === 'true',
+    },
+    alb: {
+        mtlsTrustStoreArn:
+            app.node.tryGetContext('mtlsTrustStoreArn') ||
+            process.env.MTLS_TRUST_STORE_ARN,
+        enableAccessLogs:
+            (app.node.tryGetContext('albEnableAccessLogs') ||
+                process.env.ALB_ENABLE_ACCESS_LOGS ||
+                'true') === 'true',
+    },
+    logging: {
+        enabled:
+            (app.node.tryGetContext('loggingEnabled') ||
+                process.env.LOGGING_ENABLED ||
+                'true') === 'true',
+        centralDestinationArn:
+            app.node.tryGetContext('loggingCentralDestinationArn') ||
+            process.env.LOGGING_CENTRAL_DESTINATION_ARN,
+        logGroupNames: (
+            app.node.tryGetContext('loggingLogGroupNames') ||
+            process.env.LOGGING_LOG_GROUP_NAMES ||
+            ''
+        )
+            .split(',')
+            .map((name: string) => name.trim())
+            .filter((name: string) => name.length > 0),
+        filterPattern:
+            app.node.tryGetContext('loggingFilterPattern') ||
+            process.env.LOGGING_FILTER_PATTERN,
+        subscriptionRoleArn:
+            app.node.tryGetContext('loggingSubscriptionRoleArn') ||
+            process.env.LOGGING_SUBSCRIPTION_ROLE_ARN,
+    },
+});
+
+// Get shared ECS IAM roles (optional - will be created if not provided)
+const ecsTaskExecutionRoleArn =
+    app.node.tryGetContext('ecsTaskExecutionRoleArn') ||
+    process.env.ECS_TASK_EXECUTION_ROLE_ARN;
+
+const ecsTaskRoleArn =
+    app.node.tryGetContext('ecsTaskRoleArn') || process.env.ECS_TASK_ROLE_ARN;
+
+// Note: If IAM roles are not provided, they will be automatically created with appropriate permissions
+
+// Cross-account deploy role for the kong-plugin pipeline.
+// Set to the OIDC role ARN used by the kong-plugin Bitbucket pipeline (OIDC_PLUGIN_ROLE).
+// When set, each service stack creates a scoped IAM role that the pipeline can assume
+// to call `aws cloudformation update-stack` with a new ContainerImage value.
+const pluginDeployRoleArn =
+    app.node.tryGetContext('pluginDeployRoleArn') ||
+    process.env.PLUGIN_DEPLOY_ROLE_ARN;
+
+// Deploy service stacks (depends on infrastructure stack)
+const serviceStacks: KongServiceStack[] = [];
+
+services.forEach((service, index) => {
+    const serviceStackName = regionalSuffix
+        ? `kong-${service.appName}-service-stack-${environment}-${regionalSuffix}`
+        : `kong-${service.appName}-service-stack-${environment}`;
+
+    if (!infraStack.albConstruct.httpsListener) {
+        throw new Error('HTTPS listener (port 443) is required - certificate must be provided');
+    }
+
+    const mtlsListenerArn = infraStack.albConstruct.httpsListener.listenerArn;
+
+    const serviceStack = new KongServiceStack(app, serviceStackName, {
+        env,
+        synthesizer,
+        system: service.appName,
+        environment,
+        appName: service.appName,
+        pathPrefix: service.pathPrefix,
+        konnectControlPlaneSecretArn: service.secretArn,
+        vpc: infraStack.vpcConstruct.vpc,
+        mtlsListenerArn,
+        albSecurityGroupId: infraStack.albConstruct.securityGroup.securityGroupId,
+        ecsTaskExecutionRoleArn,
+        ecsTaskRoleArn,
+        pluginDeployRoleArn,
+        kongLogLevel: service.logLevel || 'notice',
+        dataPlane: {
+            cpu: service.cpu,
+            memoryMiB: service.memory,
+            replicas: service.replicas,
+            imageUri: service.imageUri,
+        },
+        logging: {
+            enabled:
+                (app.node.tryGetContext('loggingEnabled') ||
+                    process.env.LOGGING_ENABLED ||
+                    'true') === 'true',
+            centralDestinationArn:
+                app.node.tryGetContext('loggingCentralDestinationArn') ||
+                process.env.LOGGING_CENTRAL_DESTINATION_ARN,
+            filterPattern:
+                app.node.tryGetContext('loggingFilterPattern') ||
+                process.env.LOGGING_FILTER_PATTERN,
+            subscriptionRoleArn:
+                app.node.tryGetContext('loggingSubscriptionRoleArn') ||
+                process.env.LOGGING_SUBSCRIPTION_ROLE_ARN ||
+                infraStack.loggingConstruct?.subscriptionRole?.roleArn,
+        },
+        dpResilience: {
+            enabled:
+                (app.node.tryGetContext('dpResilienceEnabled') ||
+                    process.env.DP_RESILIENCE_ENABLED ||
+                    'true') === 'true',
+            bucketName:
+                app.node.tryGetContext('dpResilienceBucketName') ||
+                process.env.DP_RESILIENCE_BUCKET_NAME,
+            configPrefix:
+                app.node.tryGetContext('dpResilienceConfigPrefix') ||
+                process.env.DP_RESILIENCE_CONFIG_PREFIX ||
+                'kong-config',
+            kmsKeyArn:
+                app.node.tryGetContext('dpResilienceKmsKeyArn') ||
+                process.env.DP_RESILIENCE_KMS_KEY_ARN,
+        },
+    });
+
+    // Service stack depends on infrastructure stack
+    serviceStack.addDependency(infraStack);
+    serviceStacks.push(serviceStack);
+});

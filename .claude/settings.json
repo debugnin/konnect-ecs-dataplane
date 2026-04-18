@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/frank.cao@konghq.com/Workspaces/integrity-systems/nlis2-apiops-configuration -type f -name *deck* -o -name *config* -o -name *pipeline*)",
+      "Bash(git commit:*)",
+      "Read(//Users/frank.cao@konghq.com/Workspaces/integrity-systems/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/frank.cao@konghq.com/Downloads",
+      "/Users/frank.cao@konghq.com/Workspaces/integrity-systems"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+*.js
+!jest.config.js
+*.d.ts
+node_modules
+dist
+
+# CDK asset staging directory
+.cdk.staging
+cdk.out
+
+.DS_Store
+
+# Snyk Security Extension - AI Rules (auto-generated)
+.github/instructions/snyk_rules.instructions.md

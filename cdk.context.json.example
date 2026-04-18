@@ -1,0 +1,59 @@
+{
+    "environment": "dev",
+    "qualifier": "konginfra",
+    "regionalSuffix": "",
+
+    "defaultKongImage": "123456789012.dkr.ecr.ap-southeast-2.amazonaws.com/kong-gateway:3.9.0",
+
+    "service1Name": "customers",
+    "service1Path": "/customers",
+    "service1SecretArn": "arn:aws:secretsmanager:ap-southeast-2:123456789012:secret:kong-customers-cert-AbCdEf",
+    "service1Cpu": "512",
+    "service1Memory": "1024",
+    "service1Replicas": "2",
+    "service1LogLevel": "notice",
+
+    "service2Name": "bookings",
+    "service2Path": "/bookings",
+    "service2SecretArn": "arn:aws:secretsmanager:ap-southeast-2:123456789012:secret:kong-bookings-cert-GhIjKl",
+    "service2Cpu": "512",
+    "service2Memory": "1024",
+    "service2Replicas": "2",
+    "service2LogLevel": "notice",
+
+    "vpcCidr": "10.0.0.0/16",
+    "vpcMaxAzs": "2",
+    "vpcNatGateways": "1",
+    "vpcEnableFlowLogs": "true",
+    "vpcFlowLogRoleArn": "arn:aws:iam::123456789012:role/kong-vpc-flowlog-role",
+    "vpcEnableEndpoints": "true",
+    "transitGatewayId": "tgw-0abc123def456",
+    "transitGatewayRoutes": "10.1.0.0/16,10.2.0.0/16",
+
+    "albDomain": "api.example.com",
+    "albHostedZoneId": "Z1234567890ABC",
+    "albHostedZoneName": "example.com",
+    "albSubjectAlternativeNames": "api-internal.example.com",
+    "mtlsTrustStoreArn": "arn:aws:elasticloadbalancing:ap-southeast-2:123456789012:truststore/kong-mtls-truststore/abc123",
+    "albEnableAccessLogs": "true",
+
+    "wafEnabled": "true",
+    "wafRateLimit": "2000",
+    "wafAllowedCidrs": "203.0.113.0/24,198.51.100.0/24",
+    "wafEnableCidrRestriction": "true",
+
+    "ecsTaskExecutionRoleArn": "arn:aws:iam::123456789012:role/kong-ecs-task-execution-role",
+    "ecsTaskRoleArn": "arn:aws:iam::123456789012:role/kong-ecs-task-role",
+    "pluginDeployRoleArn": "arn:aws:iam::123456789012:role/kong-plugin-deploy-oidc-role",
+
+    "loggingEnabled": "true",
+    "loggingCentralDestinationArn": "arn:aws:logs:ap-southeast-2:123456789012:destination:CentralLogDestination",
+    "loggingLogGroupNames": "/aws/vpc/kong-vpc-flowlogs-dev,/aws/ecs/customers-api-dp-logs-dev",
+    "loggingFilterPattern": "",
+    "loggingSubscriptionRoleArn": "arn:aws:iam::123456789012:role/kong-logstreaming-role",
+
+    "dpResilienceEnabled": "true",
+    "dpResilienceBucketName": "customers-kong-dpconfig-s3-dev",
+    "dpResilienceConfigPrefix": "kong-config",
+    "dpResilienceKmsKeyArn": "arn:aws:kms:ap-southeast-2:123456789012:key/mrk-abc123def456"
+}
