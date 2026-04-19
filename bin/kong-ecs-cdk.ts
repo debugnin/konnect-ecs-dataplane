@@ -14,9 +14,9 @@ if (!environment) {
 }
 
 // Service configuration - can specify multiple services
-// Note: appName is used as the system identifier in resource naming
+// Note: serviceName is used as the system identifier in resource naming
 interface ServiceConfig {
-    appName: string;
+    serviceName: string;
     pathPrefix: string;
     secretArn: string;
     cpu?: number;
@@ -49,7 +49,7 @@ for (let serviceIndex = 1; serviceIndex <= 100; serviceIndex++) {
     }
 
     services.push({
-        appName: serviceName,
+        serviceName: serviceName,
         pathPrefix,
         secretArn,
         cpu: Number(
@@ -95,7 +95,7 @@ if (services.length === 0) {
 
 // Parameterise stack names following naming convention
 // Infrastructure is shared, so use "kong" as the system name
-// Service stacks use the appName as the system identifier
+// Service stacks use the serviceName as the system identifier
 const regionalSuffix =
     app.node.tryGetContext('regionalSuffix') || process.env.REGIONAL_SUFFIX || '';
 const infraStackName = regionalSuffix
@@ -224,8 +224,8 @@ const serviceStacks: KongServiceStack[] = [];
 
 services.forEach((service, index) => {
     const serviceStackName = regionalSuffix
-        ? `kong-${service.appName}-service-stack-${environment}-${regionalSuffix}`
-        : `kong-${service.appName}-service-stack-${environment}`;
+        ? `kong-${service.serviceName}-service-stack-${environment}-${regionalSuffix}`
+        : `kong-${service.serviceName}-service-stack-${environment}`;
 
     if (!infraStack.albConstruct.httpsListener) {
         throw new Error(
@@ -238,9 +238,9 @@ services.forEach((service, index) => {
     const serviceStack = new KongServiceStack(app, serviceStackName, {
         env,
         ...(synthesizer && { synthesizer }),
-        system: service.appName,
+        system: service.serviceName,
         environment,
-        appName: service.appName,
+        serviceName: service.serviceName,
         pathPrefix: service.pathPrefix,
         konnectControlPlaneSecretArn: service.secretArn,
         vpc: infraStack.vpcConstruct.vpc,

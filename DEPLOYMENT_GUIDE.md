@@ -73,7 +73,7 @@ After deployment:
 | `ALB_HOSTED_ZONE_NAME` | Route 53 Hosted Zone Name for ALB | -       |
 | `WAF_ENABLED`          | Enable WAF protection             | `true`  |
 
-**Note**: The infrastructure stack is shared across all services and does not use an appName.
+**Note**: The infrastructure stack is shared across all services and does not use a serviceName.
 
 ### Service Configuration (per service)
 
@@ -124,7 +124,7 @@ npx cdk deploy KongKonnectStack-Service-payments
 ## Key Changes from Previous Architecture
 
 1. **Service Stack (formerly ECS Stack)**
-    - Now requires `appName` (not optional)
+    - Now requires `serviceName` (not optional)
     - Requires `pathPrefix` for routing
     - Creates its own target group
     - Adds listener rules for path-based routing

@@ -317,7 +317,7 @@ After deployment, the stack outputs:
 
 ## Monitoring
 
-- **CloudWatch Logs**: `/ecs/kong-data-plane` (or `/ecs/kong-data-plane-{appName}`)
+- **CloudWatch Logs**: `/ecs/kong-data-plane` (or `/ecs/kong-data-plane-{serviceName}`)
 - **Health Check**: `http://{load-balancer}/status` (port 8100)
 - **Kong Manager**: Available in Kong Konnect console
 

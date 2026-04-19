@@ -87,12 +87,12 @@ All existing environment variables from the single-region setup are still requir
 ### Primary Region (Sydney)
 
 - `kong-infra-stack` (ap-southeast-2)
-- `kong-{appName}-service-stack` (ap-southeast-2)
+- `kong-{serviceName}-service-stack` (ap-southeast-2)
 
 ### Secondary Region (Melbourne)
 
 - `kong-infra-stack-secondary` (ap-southeast-4)
-- `kong-{appName}-service-stack-secondary` (ap-southeast-4)
+- `kong-{serviceName}-service-stack-secondary` (ap-southeast-4)
 
 **Note**: Primary region uses default naming (no suffix). Secondary region includes `-secondary` suffix for clear differentiation.
 

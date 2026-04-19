@@ -16,7 +16,7 @@ export interface KongServiceStackProps extends cdk.StackProps {
     environment: string; // Environment: dev, qa, uat, prd
 
     konnectControlPlaneSecretArn: string;
-    appName: string; // Required - used for resource naming and path routing
+    serviceName: string; // Required - used for resource naming and path routing
     pathPrefix: string; // URL path prefix for routing (e.g., '/customers', '/bookings')
 
     // Required infrastructure inputs (from KongInfrastructureStack)
@@ -75,7 +75,7 @@ export class KongServiceStack extends cdk.Stack {
 
     private readonly systemName: string;
     private readonly environmentName: string;
-    private readonly appName: string;
+    private readonly serviceName: string;
     private readonly pathPrefix: string;
     private readonly dpCpu: number;
     private readonly dpMemoryMiB: number;
@@ -100,7 +100,7 @@ export class KongServiceStack extends cdk.Stack {
 
         this.systemName = props.system;
         this.environmentName = props.environment;
-        this.appName = props.appName;
+        this.serviceName = props.serviceName;
         // Ensure pathPrefix starts with /
         this.pathPrefix = props.pathPrefix.startsWith('/')
             ? props.pathPrefix
@@ -133,7 +133,7 @@ export class KongServiceStack extends cdk.Stack {
         // Create ECS Cluster
         this.ecsCluster = new ecs.Cluster(this, 'KongCluster', {
             vpc,
-            clusterName: `kong-${this.appName}-ecscluster-${this.environmentName}`,
+            clusterName: `kong-${this.serviceName}-ecscluster-${this.environmentName}`,
         });
 
         // Reference external Konnect secret
@@ -148,7 +148,7 @@ export class KongServiceStack extends cdk.Stack {
             vpc,
             port: 8443,
             protocol: elbv2.ApplicationProtocol.HTTPS,
-            targetGroupName: `kong-${this.appName}-tg-${this.environmentName}`,
+            targetGroupName: `kong-${this.serviceName}-tg-${this.environmentName}`,
             healthCheck: {
                 enabled: true,
                 protocol: elbv2.Protocol.HTTP,
@@ -168,7 +168,7 @@ export class KongServiceStack extends cdk.Stack {
                 'DpResilienceConstruct',
                 {
                     environment: this.environmentName,
-                    component: this.appName,
+                    component: this.serviceName,
                 }
             );
 
@@ -185,14 +185,14 @@ export class KongServiceStack extends cdk.Stack {
             // Get ECS service security group to allow Redis access
             const ecsSecurityGroup = new ec2.SecurityGroup(this, 'EcsSecurityGroup', {
                 vpc,
-                description: `Security group for Kong ECS service ${this.appName} (${this.environmentName})`,
-                securityGroupName: `kong-${this.appName}-ecs-sg-${this.environmentName}`,
+                description: `Security group for Kong ECS service ${this.serviceName} (${this.environmentName})`,
+                securityGroupName: `kong-${this.serviceName}-ecs-sg-${this.environmentName}`,
             });
 
             this.redisConstruct = new RedisConstruct(this, 'RedisConstruct', {
                 vpc,
                 environment: this.environmentName,
-                appName: this.appName, // Pass appName for per-service naming
+                serviceName: this.serviceName, // Pass serviceName for per-service naming
                 nodeType: props.redis.nodeType,
                 numCacheNodes: props.redis.numCacheNodes,
                 engineVersion: props.redis.engineVersion,
@@ -347,9 +347,9 @@ export class KongServiceStack extends cdk.Stack {
     private setupIamRoles(props: KongServiceStackProps): void {
         // Task Execution Role (for pulling images, accessing secrets)
         const executionRole = new iam.Role(this, 'DpExecutionRole', {
-            roleName: `kong-${this.appName}-task-execution-role-${this.environmentName}`,
+            roleName: `kong-${this.serviceName}-task-execution-role-${this.environmentName}`,
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-            description: `ECS Task Execution Role for Kong ${this.appName} data plane`,
+            description: `ECS Task Execution Role for Kong ${this.serviceName} data plane`,
             managedPolicies: [
                 iam.ManagedPolicy.fromAwsManagedPolicyName(
                     'service-role/AmazonECSTaskExecutionRolePolicy'
@@ -383,9 +383,9 @@ export class KongServiceStack extends cdk.Stack {
 
         // Task Role (for runtime permissions: S3, logs, Lambda invocations)
         const taskRole = new iam.Role(this, 'DpTaskRole', {
-            roleName: `kong-${this.appName}-task-role-${this.environmentName}`,
+            roleName: `kong-${this.serviceName}-task-role-${this.environmentName}`,
             assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-            description: `ECS Task Role for Kong ${this.appName} data plane runtime`,
+            description: `ECS Task Role for Kong ${this.serviceName} data plane runtime`,
         });
 
         // Add CloudWatch Logs permissions
@@ -465,7 +465,7 @@ export class KongServiceStack extends cdk.Stack {
 
         // Log group
         this.dpLogGroup = new logs.LogGroup(this, 'DpLogGroup', {
-            logGroupName: `/aws/ecs/kong-${this.appName}-dp-logs-${this.environmentName}`,
+            logGroupName: `/aws/ecs/kong-${this.serviceName}-dp-logs-${this.environmentName}`,
             retention: logs.RetentionDays.ONE_WEEK,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
@@ -562,7 +562,7 @@ export class KongServiceStack extends cdk.Stack {
         // ECS Service
         const dpService = new ecs.FargateService(this, 'DpService', {
             cluster,
-            serviceName: `kong-${this.appName}-ecsservice-${this.environmentName}`,
+            serviceName: `kong-${this.serviceName}-ecsservice-${this.environmentName}`,
             taskDefinition: dpTaskDefinition,
             desiredCount: this.dpReplicas,
             assignPublicIp: false,
@@ -605,7 +605,7 @@ export class KongServiceStack extends cdk.Stack {
 
         // Log group for backup node
         this.backupLogGroup = new logs.LogGroup(this, 'BackupLogGroup', {
-            logGroupName: `/aws/ecs/kong-${this.appName}-backup-logs-${this.environmentName}`,
+            logGroupName: `/aws/ecs/kong-${this.serviceName}-backup-logs-${this.environmentName}`,
             retention: logs.RetentionDays.ONE_WEEK,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
         });
@@ -697,7 +697,7 @@ export class KongServiceStack extends cdk.Stack {
         // ECS Service - 1 replica (hardcoded), not registered with ALB
         const backupService = new ecs.FargateService(this, 'BackupService', {
             cluster,
-            serviceName: `kong-${this.appName}-backup-ecsservice-${this.environmentName}`,
+            serviceName: `kong-${this.serviceName}-backup-ecsservice-${this.environmentName}`,
             taskDefinition: backupTaskDefinition,
             desiredCount: 1, // Only 1 backup node needed
             assignPublicIp: false,

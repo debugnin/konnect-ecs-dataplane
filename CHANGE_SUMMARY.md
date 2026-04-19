@@ -102,7 +102,7 @@ This feature applies to:
 The SYSTEM parameter has been **removed from shared infrastructure**. The naming strategy now distinguishes between:
 
 1. **Shared Infrastructure** (`kong-*`): Resources shared across all services (VPC, ALB, WAF, Metrics, Logging)
-2. **Service-Specific Resources** (`<appName>-*`): Resources unique to each service (ECS clusters, services, target groups)
+2. **Service-Specific Resources** (`<serviceName>-*`): Resources unique to each service (ECS clusters, services, target groups)
 
 ### Rationale
 
@@ -120,12 +120,12 @@ The shared infrastructure serves multiple applications/services. Using a service
 - ✅ **Infrastructure Stack**: No longer requires or passes system parameter to constructs
 - ✅ **Main CDK App**: Doesn't pass system to infrastructure stacks
 
-#### Service-Specific Resources Still Use appName:
+#### Service-Specific Resources Still Use serviceName:
 
 - ✅ **Service Stack**: Uses `SERVICE{N}_NAME` as system identifier
-- ✅ **ECS Resources**: `${appName}-kong-ecscluster-${env}`, `${appName}-kong-ecsservice-${env}`
-- ✅ **Target Groups**: `${appName}-kong-tg-${env}`
-- ✅ **CloudWatch Logs**: `/aws/ecs/${appName}-kong-dp-logs-${env}`
+- ✅ **ECS Resources**: `${serviceName}-kong-ecscluster-${env}`, `${serviceName}-kong-ecsservice-${env}`
+- ✅ **Target Groups**: `${serviceName}-kong-tg-${env}`
+- ✅ **CloudWatch Logs**: `/aws/ecs/${serviceName}-kong-dp-logs-${env}`
 
 ### Updated Stack Names
 
@@ -176,12 +176,12 @@ The shared infrastructure serves multiple applications/services. Using a service
 
 - ✅ Added system and environment to props interface
 - ✅ Updated resource names:
-    - ECS Cluster: `<system>-<appName>-ecscluster-<env>`
-    - ECS Service: `<system>-<appName>-ecsservice-<env>`
-    - Backup Service: `<system>-<appName>-backup-ecsservice-<env>`
-    - Target Group: `<system>-<appName>-tg-<env>`
-    - Data Plane Logs: `/aws/ecs/<system>-<appName>-dp-logs-<env>`
-    - Backup Logs: `/aws/ecs/<system>-<appName>-backup-logs-<env>`
+    - ECS Cluster: `<system>-<serviceName>-ecscluster-<env>`
+    - ECS Service: `<system>-<serviceName>-ecsservice-<env>`
+    - Backup Service: `<system>-<serviceName>-backup-ecsservice-<env>`
+    - Target Group: `<system>-<serviceName>-tg-<env>`
+    - Data Plane Logs: `/aws/ecs/<system>-<serviceName>-dp-logs-<env>`
+    - Backup Logs: `/aws/ecs/<system>-<serviceName>-backup-logs-<env>`
 - ✅ Pass naming parameters to constructs
 
 ### 5. VPC Construct ([lib/constructs/vpc-construct.ts](lib/constructs/vpc-construct.ts))
@@ -307,15 +307,15 @@ Before deploying to production, verify:
 
 ✅ All naming convention items implemented:
 
-- [x] Standard patterns: `kong-<component>-<resourcetype>-<env>` (shared) and `<appName>-<component>-<resourcetype>-<env>` (service-specific)
+- [x] Standard patterns: `kong-<component>-<resourcetype>-<env>` (shared) and `<serviceName>-<component>-<resourcetype>-<env>` (service-specific)
 - [x] Environment abbreviations: dev, qa, uat, prd
 - [x] Lowercase letters, numbers, and hyphens
 - [x] VPC resources follow pattern (shared: `kong-vpc-${env}`)
 - [x] ALB resources follow pattern (shared: `kong-alb-${env}`)
-- [x] ECS resources follow pattern (service-specific: `${appName}-kong-ecscluster-${env}`)
+- [x] ECS resources follow pattern (service-specific: `${serviceName}-kong-ecscluster-${env}`)
 - [x] CloudWatch Logs follow pattern (both shared and service-specific)
 - [x] IAM roles follow pattern (shared: `kong-logstreaming-role-${env}`)
-- [x] CloudFormation stacks follow pattern (shared: `kong-*-stack`, service: `${appName}-service-stack`)
+- [x] CloudFormation stacks follow pattern (shared: `kong-*-stack`, service: `${serviceName}-service-stack`)
 - [x] S3 buckets follow pattern (when specified, service-specific)
 - [x] WAF resources follow pattern (shared: `kong-${component}-waf-${env}`)
 - [x] Kinesis Firehose follows pattern (shared: `kong-metrics-firehose-${env}`)

@@ -19,12 +19,12 @@ kong-<component>-<resourcetype>-<env>
 Service-specific resources (ECS clusters, services, target groups) use the pattern:
 
 ```
-<appName>-<component>-<resourcetype>-<env>
+<serviceName>-<component>-<resourcetype>-<env>
 ```
 
 Where:
 
-- **appName**: Service/application name from SERVICE{N}\_NAME (e.g., customers, bookings)
+- **serviceName**: Service/application name from SERVICE{N}\_NAME (e.g., customers, bookings)
 - **component**: Logical component or service name
 - **resourcetype**: Cloud-native resource type (ec2, lambda, s3, rds, vpc, sqs, sns, etc.)
 - **env**: Environment (dev, qa, uat, prd)
@@ -49,7 +49,7 @@ Deployment environment. Valid values:
 ```bash
 export ENVIRONMENT=dev
 
-# Configure service (appName becomes the system identifier)
+# Configure service (serviceName becomes the system identifier)
 export SERVICE1_NAME="customers"
 export SERVICE1_PATH="/customers"
 export SERVICE1_SECRET_ARN="arn:aws:secretsmanager:..."
@@ -222,7 +222,7 @@ The infrastructure (VPC, ALB, WAF, Metrics, Logging) is **shared across all serv
 - One ALB routes to multiple target groups
 - One metrics/logging infrastructure for all services
 
-**Service-Specific Resources** (`<appName>-*`):
+**Service-Specific Resources** (`<serviceName>-*`):
 
 - Each service has its own ECS cluster
 - Each service has its own target group
@@ -246,12 +246,12 @@ If migrating from the previous naming scheme:
 
 ## Environment Variable Summary
 
-| Variable                | Purpose                                      | Required | Valid Values                                   |
-| ----------------------- | -------------------------------------------- | -------- | ---------------------------------------------- |
-| `ENVIRONMENT`           | Deployment environment                       | Yes      | dev, qa, uat, prd                              |
+| Variable                | Purpose                                      | Required | Valid Values                                        |
+| ----------------------- | -------------------------------------------- | -------- | --------------------------------------------------- |
+| `ENVIRONMENT`           | Deployment environment                       | Yes      | dev, qa, uat, prd                                   |
 | `SERVICE{N}_NAME`       | Service/app name (becomes system identifier) | Yes      | Any alphanumeric string (e.g., customers, bookings) |
 | `SERVICE{N}_PATH`       | URL path for routing                         | Yes      | Any valid path (e.g., /customers, /bookings)        |
-| `SERVICE{N}_SECRET_ARN` | Konnect certificate ARN                      | Yes      | Valid AWS Secrets Manager ARN                  |
+| `SERVICE{N}_SECRET_ARN` | Konnect certificate ARN                      | Yes      | Valid AWS Secrets Manager ARN                       |
 
 ## Validation
 

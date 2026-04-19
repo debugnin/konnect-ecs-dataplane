@@ -275,7 +275,7 @@ Monitor these metrics:
 - **S3 GET requests** from regular nodes (should be zero during normal operation, spikes during CP outage)
 - **ECS task startup time** (longer if loading from S3)
 - **Kong cluster connection status**
-- **Backup service health**: Check CloudWatch logs at `/ecs/kong-backup-{appName}`
+- **Backup service health**: Check CloudWatch logs at `/ecs/kong-backup-{serviceName}`
 
 ## Troubleshooting
 
@@ -287,7 +287,7 @@ Monitor these metrics:
 
 1. Check IAM permissions: `ecsTaskExecutionRoleArn` needs `s3:PutObject`, `s3:DeleteObject`
 2. Verify environment variable in backup node: `KONG_CLUSTER_FALLBACK_CONFIG_EXPORT=on`
-3. Check Kong logs in CloudWatch: `/ecs/kong-backup-{appName}`
+3. Check Kong logs in CloudWatch: `/ecs/kong-backup-{serviceName}`
 4. Ensure backup node can connect to Konnect Control Plane
 
 ### Regular DP Node Not Starting During CP Outage
@@ -300,7 +300,7 @@ Monitor these metrics:
 2. Verify environment variable: `KONG_CLUSTER_FALLBACK_CONFIG_IMPORT=on`
 3. Check S3 bucket: Confirm `config.json` exists at correct path
 4. Verify S3 bucket accessibility from ECS tasks (VPC endpoints, NAT gateway)
-5. Check CloudWatch logs: `/ecs/kong-data-plane-{appName}`
+5. Check CloudWatch logs: `/ecs/kong-data-plane-{serviceName}`
 
 ### Configuration Not Importing Despite S3 File
 

@@ -34,7 +34,7 @@
  *   const redisConstruct = new RedisConstruct(this, 'RedisConstruct', {
  *     vpc: vpcConstruct.vpc,
  *     environment: 'dev',
- *     appName: 'customers',  // Service-specific Redis cluster
+ *     serviceName: 'customers',  // Service-specific Redis cluster
  *     nodeType: 'cache.t4g.micro',
  *     numCacheNodes: 1,
  *     engineVersion: '7.0',
@@ -63,7 +63,7 @@ export interface RedisConstructProps {
      * Service/app name for naming (e.g., customers, bookings)
      * Used to create unique Redis cluster per service
      */
-    appName?: string;
+    serviceName?: string;
 
     /**
      * Redis node type (instance class)
@@ -169,7 +169,7 @@ export class RedisConstruct extends Construct {
         super(scope, id);
 
         this.environmentName = props.environment;
-        const serviceName = props.appName || 'shared';
+        const serviceName = props.serviceName || 'shared';
 
         const {
             vpc,
