@@ -43,9 +43,6 @@ export interface KongServiceStackProps extends cdk.StackProps {
     // Data Plane Resilience Configuration (S3 Config Backup)
     dpResilience?: {
         enabled?: boolean;
-        bucketName?: string;
-        configPrefix?: string;
-        kmsKeyArn?: string;
     };
 
     // Redis Configuration (ElastiCache) - Per Service
@@ -173,11 +170,12 @@ export class KongServiceStack extends cdk.Stack {
                     system: this.systemName,
                     environment: this.environmentName,
                     component: this.appName,
-                    bucketName: props.dpResilience.bucketName,
-                    configPrefix: props.dpResilience.configPrefix,
-                    kmsKeyArn: props.dpResilience.kmsKeyArn,
                 }
             );
+
+            // Grant S3 read/write permissions to both execution and task roles
+            this.dpResilienceConstruct.bucket.grantReadWrite(this.ecsTaskExecutionRole!);
+            this.dpResilienceConstruct.bucket.grantReadWrite(this.ecsTaskRole!);
 
             // Create Backup Node (1 replica, exports config, no traffic)
             this.backupService = this.createBackupNode(this.ecsCluster, konnectSecret);
@@ -382,41 +380,6 @@ export class KongServiceStack extends cdk.Stack {
             })
         );
 
-        // Add S3 permissions if DP resilience is enabled
-        if (props.dpResilience?.enabled && props.dpResilience.bucketName) {
-            executionRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: [
-                        's3:GetObject',
-                        's3:PutObject',
-                        's3:DeleteObject',
-                        's3:ListBucket',
-                    ],
-                    resources: [
-                        `arn:aws:s3:::${props.dpResilience.bucketName}`,
-                        `arn:aws:s3:::${props.dpResilience.bucketName}/*`,
-                    ],
-                })
-            );
-
-            // Add KMS permissions if KMS key is provided
-            if (props.dpResilience.kmsKeyArn) {
-                executionRole.addToPolicy(
-                    new iam.PolicyStatement({
-                        effect: iam.Effect.ALLOW,
-                        actions: [
-                            'kms:Decrypt',
-                            'kms:DescribeKey',
-                            'kms:Encrypt',
-                            'kms:GenerateDataKey',
-                        ],
-                        resources: [props.dpResilience.kmsKeyArn],
-                    })
-                );
-            }
-        }
-
         this.ecsTaskExecutionRole = executionRole;
 
         // Task Role (for runtime permissions: S3, logs, Lambda invocations)
@@ -438,41 +401,6 @@ export class KongServiceStack extends cdk.Stack {
                 resources: ['*'],
             })
         );
-
-        // Add S3 permissions if DP resilience is enabled
-        if (props.dpResilience?.enabled && props.dpResilience.bucketName) {
-            taskRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: [
-                        's3:GetObject',
-                        's3:PutObject',
-                        's3:DeleteObject',
-                        's3:ListBucket',
-                    ],
-                    resources: [
-                        `arn:aws:s3:::${props.dpResilience.bucketName}`,
-                        `arn:aws:s3:::${props.dpResilience.bucketName}/*`,
-                    ],
-                })
-            );
-
-            // Add KMS permissions if KMS key is provided
-            if (props.dpResilience.kmsKeyArn) {
-                taskRole.addToPolicy(
-                    new iam.PolicyStatement({
-                        effect: iam.Effect.ALLOW,
-                        actions: [
-                            'kms:Decrypt',
-                            'kms:DescribeKey',
-                            'kms:Encrypt',
-                            'kms:GenerateDataKey',
-                        ],
-                        resources: [props.dpResilience.kmsKeyArn],
-                    })
-                );
-            }
-        }
 
         // Add Lambda invocation permissions (commonly needed for Kong AWS Lambda plugin)
         taskRole.addToPolicy(

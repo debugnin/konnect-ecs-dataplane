@@ -26,15 +26,14 @@
  *
  * Environment Variables:
  *   DP_RESILIENCE_ENABLED=true
- *   DP_RESILIENCE_BUCKET_NAME=kong-dp-config-backup (optional, auto-generated)
- *   DP_RESILIENCE_CONFIG_PREFIX=kong-config (optional, default: kong-config)
- *   DP_RESILIENCE_KMS_KEY_ARN=arn:aws:kms:... (optional)
+ *
+ * Note: Bucket name is auto-generated, config prefix is fixed at 'kong-config',
+ * and encryption uses S3-managed keys (SSE-S3).
  */
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as iam from 'aws-cdk-lib/aws-iam';
-import * as kms from 'aws-cdk-lib/aws-kms';
 
 export interface DataPlaneResilienceConstructProps {
     /**
@@ -51,31 +50,11 @@ export interface DataPlaneResilienceConstructProps {
      * Component name (e.g., the service name like "customers", "bookings", etc.)
      */
     component: string;
-
-    /**
-     * S3 bucket name for Kong configuration backups.
-     * If not provided, CDK will auto-generate a unique name.
-     */
-    bucketName?: string;
-
-    /**
-     * KMS key ARN for encryption at rest.
-     * If not provided, uses S3-managed encryption (SSE-S3).
-     */
-    kmsKeyArn?: string;
-
-    /**
-     * Prefix for config objects in S3.
-     * Kong will create version-specific files: {prefix}/{version}/config.json
-     * Default: 'kong-config'
-     */
-    configPrefix?: string;
 }
 
 export class DataPlaneResilienceConstruct extends Construct {
     public readonly bucket: s3.Bucket;
-    public readonly kmsKey?: kms.IKey;
-    public readonly configPrefix: string;
+    public readonly configPrefix: string = 'kong-config';
     private readonly systemName: string;
     private readonly environmentName: string;
     private readonly component: string;
@@ -87,22 +66,9 @@ export class DataPlaneResilienceConstruct extends Construct {
         this.environmentName = props.environment;
         this.component = props.component;
 
-        const { bucketName, kmsKeyArn, configPrefix = 'kong-config' } = props;
-
-        this.configPrefix = configPrefix;
-
-        // Import KMS key if provided
-        if (kmsKeyArn) {
-            this.kmsKey = kms.Key.fromKeyArn(this, 'KmsKey', kmsKeyArn);
-        }
-
         // Create S3 bucket for Kong configuration backups
         this.bucket = new s3.Bucket(this, 'DpConfigBucket', {
-            bucketName,
-            encryption: this.kmsKey
-                ? s3.BucketEncryption.KMS
-                : s3.BucketEncryption.S3_MANAGED,
-            encryptionKey: this.kmsKey,
+            encryption: s3.BucketEncryption.S3_MANAGED,
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             versioned: true, // Enable versioning for config history
             removalPolicy: cdk.RemovalPolicy.RETAIN, // Prevent accidental deletion
@@ -112,7 +78,7 @@ export class DataPlaneResilienceConstruct extends Construct {
                     enabled: true,
                     // Kong creates election files at {prefix}/{version}/election/*
                     // These can be deleted after a few days if not updated
-                    prefix: `${configPrefix}/`,
+                    prefix: `${this.configPrefix}/`,
                     expiration: cdk.Duration.days(7),
                     noncurrentVersionExpiration: cdk.Duration.days(7),
                 },

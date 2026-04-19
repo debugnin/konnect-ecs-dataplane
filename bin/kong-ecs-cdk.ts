@@ -270,16 +270,6 @@ services.forEach((service, index) => {
                 (app.node.tryGetContext('dpResilienceEnabled') ||
                     process.env.DP_RESILIENCE_ENABLED ||
                     'true') === 'true',
-            bucketName:
-                app.node.tryGetContext('dpResilienceBucketName') ||
-                process.env.DP_RESILIENCE_BUCKET_NAME,
-            configPrefix:
-                app.node.tryGetContext('dpResilienceConfigPrefix') ||
-                process.env.DP_RESILIENCE_CONFIG_PREFIX ||
-                'kong-config',
-            kmsKeyArn:
-                app.node.tryGetContext('dpResilienceKmsKeyArn') ||
-                process.env.DP_RESILIENCE_KMS_KEY_ARN,
         },
         redis: {
             enabled:
