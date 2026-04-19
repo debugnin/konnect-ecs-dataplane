@@ -167,7 +167,6 @@ export class KongServiceStack extends cdk.Stack {
                 this,
                 'DpResilienceConstruct',
                 {
-                    system: this.systemName,
                     environment: this.environmentName,
                     component: this.appName,
                 }

@@ -37,11 +37,6 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 
 export interface DataPlaneResilienceConstructProps {
     /**
-     * Business system identifier (e.g., customers, bookings)
-     */
-    system: string;
-
-    /**
      * Environment: dev, qa, uat, prd
      */
     environment: string;
@@ -55,19 +50,18 @@ export interface DataPlaneResilienceConstructProps {
 export class DataPlaneResilienceConstruct extends Construct {
     public readonly bucket: s3.Bucket;
     public readonly configPrefix: string = 'kong-config';
-    private readonly systemName: string;
     private readonly environmentName: string;
     private readonly component: string;
 
     constructor(scope: Construct, id: string, props: DataPlaneResilienceConstructProps) {
         super(scope, id);
 
-        this.systemName = props.system;
         this.environmentName = props.environment;
         this.component = props.component;
 
         // Create S3 bucket for Kong configuration backups
         this.bucket = new s3.Bucket(this, 'DpConfigBucket', {
+            bucketName: `${this.component}-kong-dpconfig-s3-${this.environmentName}`,
             encryption: s3.BucketEncryption.S3_MANAGED,
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             versioned: true, // Enable versioning for config history
