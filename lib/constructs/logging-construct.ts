@@ -33,7 +33,8 @@
  *   LOGGING_CENTRAL_DESTINATION_ARN=arn:aws:logs:REGION:ACCOUNT:destination:NAME
  *   LOGGING_LOG_GROUP_NAMES=/aws/vpc/flowlogs,/ecs/kong-data-plane-*
  *   LOGGING_FILTER_PATTERN=""  (optional)
- *   LOGGING_SUBSCRIPTION_ROLE_ARN=arn:aws:iam::SOURCE_ACCOUNT:role/KongLogStreamingRole  (optional)
+ *
+ * Note: IAM role for subscription filters is created automatically by the construct.
  *
  * Example Usage:
  *   new LoggingConstruct(this, 'LoggingConstruct', {
@@ -75,17 +76,11 @@ export interface LoggingConstructProps {
      * Examples: "[ERROR]", "[level = ERROR]", etc.
      */
     filterPattern?: string;
-
-    /**
-     * Optional IAM role ARN for subscription filter.
-     * If not provided, will create a new role.
-     */
-    subscriptionRoleArn?: string;
 }
 
 export class LoggingConstruct extends Construct {
     public readonly subscriptionFilters: logs.CfnSubscriptionFilter[];
-    public readonly subscriptionRole?: iam.IRole;
+    public readonly subscriptionRole: iam.Role;
     private readonly environmentName: string;
 
     constructor(scope: Construct, id: string, props: LoggingConstructProps) {
@@ -93,40 +88,24 @@ export class LoggingConstruct extends Construct {
 
         this.environmentName = props.environment;
 
-        const {
-            centralDestinationArn,
-            logGroupNames,
-            filterPattern = '',
-            subscriptionRoleArn,
-        } = props;
+        const { centralDestinationArn, logGroupNames, filterPattern = '' } = props;
 
-        // Import or create IAM role for subscription filter
-        if (subscriptionRoleArn) {
-            this.subscriptionRole = iam.Role.fromRoleArn(
-                this,
-                'SubscriptionRole',
-                subscriptionRoleArn
-            );
-        } else {
-            // Create role for logs to assume when forwarding to central account
-            const subscriptionRole = new iam.Role(this, 'SubscriptionRole', {
-                roleName: `kong-logstreaming-role-${this.environmentName}`,
-                assumedBy: new iam.ServicePrincipal('logs.amazonaws.com'),
-                description:
-                    'IAM role for CloudWatch Logs subscription filter to forward logs to central account',
-            });
+        // Create IAM role for subscription filter
+        this.subscriptionRole = new iam.Role(this, 'SubscriptionRole', {
+            roleName: `kong-logstreaming-role-${this.environmentName}`,
+            assumedBy: new iam.ServicePrincipal('logs.amazonaws.com'),
+            description:
+                'IAM role for CloudWatch Logs subscription filter to forward logs to central account',
+        });
 
-            // Grant permissions to put records to central account's destination
-            subscriptionRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: ['logs:PutLogEvents'],
-                    resources: [centralDestinationArn],
-                })
-            );
-
-            this.subscriptionRole = subscriptionRole;
-        }
+        // Grant permissions to put records to central account's destination
+        this.subscriptionRole.addToPolicy(
+            new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ['logs:PutLogEvents'],
+                resources: [centralDestinationArn],
+            })
+        );
 
         // Create subscription filters for each log group
         this.subscriptionFilters = logGroupNames.map((logGroupName, index) => {
@@ -137,7 +116,7 @@ export class LoggingConstruct extends Construct {
                     logGroupName: logGroupName,
                     filterPattern: filterPattern,
                     destinationArn: centralDestinationArn,
-                    roleArn: this.subscriptionRole?.roleArn,
+                    roleArn: this.subscriptionRole.roleArn,
                 }
             );
 
@@ -146,7 +125,7 @@ export class LoggingConstruct extends Construct {
 
         // Outputs
         new cdk.CfnOutput(this, 'SubscriptionRoleArn', {
-            value: this.subscriptionRole?.roleArn || 'N/A',
+            value: this.subscriptionRole.roleArn,
             description: 'IAM Role ARN for log subscription filters',
         });
 

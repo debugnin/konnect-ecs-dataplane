@@ -245,8 +245,6 @@ This CDK project deploys two types of stacks:
 | `SERVICE{N}_NAME`             | Service name (e.g., customers, bookings)   | Yes      |
 | `SERVICE{N}_PATH`             | URL path prefix (e.g., /customers)         | Yes      |
 | `SERVICE{N}_SECRET_ARN`       | Konnect certificate secret ARN             | Yes      |
-| `ECS_TASK_EXECUTION_ROLE_ARN` | Pre-existing ECS Task Execution Role ARN   | Yes      |
-| `ECS_TASK_ROLE_ARN`           | Pre-existing ECS Task Role ARN             | Yes      |
 | `SERVICE{N}_CPU`              | Data plane CPU units (default: 512)        | No       |
 | `SERVICE{N}_MEMORY`           | Data plane memory MiB (default: 1024)      | No       |
 | `SERVICE{N}_REPLICAS`         | Number of data plane tasks (default: 2)    | No       |
@@ -273,7 +271,6 @@ This CDK project deploys two types of stacks:
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-cert-AbCdEf" \
-SERVICE1_TASK_ROLE_ARN="arn:aws:iam::123456789012:role/ecsTaskExecutionRole" \
 ALB_DOMAIN="api.example.com" \
 ALB_HOSTED_ZONE_ID="Z1234567890ABC" \
 ALB_HOSTED_ZONE_NAME="example.com" \
@@ -283,14 +280,12 @@ npx cdk deploy --all
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-customers-cert" \
-SERVICE1_TASK_ROLE_ARN="arn:aws:iam::123456789012:role/ecsTaskExecutionRole" \
 SERVICE1_CPU=1024 \
 SERVICE1_MEMORY=2048 \
 SERVICE1_REPLICAS=3 \
 SERVICE2_NAME="bookings" \
 SERVICE2_PATH="/bookings" \
 SERVICE2_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-bookings-cert" \
-SERVICE2_TASK_ROLE_ARN="arn:aws:iam::123456789012:role/ecsTaskExecutionRole" \
 ALB_DOMAIN="api.example.com" \
 ALB_HOSTED_ZONE_ID="Z1234567890ABC" \
 ALB_HOSTED_ZONE_NAME="example.com" \

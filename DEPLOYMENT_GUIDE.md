@@ -57,39 +57,38 @@ After deployment:
 
 ### Required Variables (Naming Conventions)
 
-| Variable          | Description                                               | Valid Values                      | Required |
-| ----------------- | --------------------------------------------------------- | --------------------------------- | -------- |
-| `ENVIRONMENT`     | Deployment environment                                    | dev, qa, uat, prd                 | **Yes**  |
+| Variable          | Description                                               | Valid Values                           | Required |
+| ----------------- | --------------------------------------------------------- | -------------------------------------- | -------- |
+| `ENVIRONMENT`     | Deployment environment                                    | dev, qa, uat, prd                      | **Yes**  |
 | `SERVICE{N}_NAME` | Service name (used as system identifier for that service) | Any string (e.g., customers, bookings) | **Yes**  |
 
 ### Infrastructure Configuration
 
-| Variable                      | Description                                     | Default |
-| ----------------------------- | ----------------------------------------------- | ------- |
-| `VPC_MAX_AZS`                 | Number of availability zones                    | `2`     |
-| `VPC_NAT_GATEWAYS`            | Number of NAT gateways                          | `1`     |
-| `ALB_DOMAIN`                  | Custom domain for ALB                           | -       |
-| `ALB_HOSTED_ZONE_ID`          | Route 53 Hosted Zone ID for ALB                 | -       |
-| `ALB_HOSTED_ZONE_NAME`        | Route 53 Hosted Zone Name for ALB               | -       |
-| `WAF_ENABLED`                 | Enable WAF protection                           | `true`  |
+| Variable               | Description                       | Default |
+| ---------------------- | --------------------------------- | ------- |
+| `VPC_MAX_AZS`          | Number of availability zones      | `2`     |
+| `VPC_NAT_GATEWAYS`     | Number of NAT gateways            | `1`     |
+| `ALB_DOMAIN`           | Custom domain for ALB             | -       |
+| `ALB_HOSTED_ZONE_ID`   | Route 53 Hosted Zone ID for ALB   | -       |
+| `ALB_HOSTED_ZONE_NAME` | Route 53 Hosted Zone Name for ALB | -       |
+| `WAF_ENABLED`          | Enable WAF protection             | `true`  |
 
 **Note**: The infrastructure stack is shared across all services and does not use an appName.
 
 ### Service Configuration (per service)
 
-| Variable                   | Description                              | Required  |
-| -------------------------- | ---------------------------------------- | --------- |
-| `SERVICE{N}_NAME`          | Service name (e.g., customers, bookings) | Yes       |
-| `SERVICE{N}_PATH`          | URL path prefix (e.g., /customers)       | Yes       |
-| `SERVICE{N}_SECRET_ARN`    | Konnect certificate secret ARN           | Yes       |
-| `SERVICE{N}_TASK_ROLE_ARN` | Pre-existing ECS Task Execution Role ARN | Yes       |
-| `SERVICE{N}_CPU`           | CPU units (256, 512, 1024, etc.)         | No (512)  |
-| `SERVICE{N}_MEMORY`        | Memory in MiB                            | No (1024) |
-| `SERVICE{N}_REPLICAS`      | Number of containers                     | No (2)    |
+| Variable                | Description                              | Required  |
+| ----------------------- | ---------------------------------------- | --------- |
+| `SERVICE{N}_NAME`       | Service name (e.g., customers, bookings) | Yes       |
+| `SERVICE{N}_PATH`       | URL path prefix (e.g., /customers)       | Yes       |
+| `SERVICE{N}_SECRET_ARN` | Konnect certificate secret ARN           | Yes       |
+| `SERVICE{N}_CPU`        | CPU units (256, 512, 1024, etc.)         | No (512)  |
+| `SERVICE{N}_MEMORY`     | Memory in MiB                            | No (1024) |
+| `SERVICE{N}_REPLICAS`   | Number of containers                     | No (2)    |
 
 Where `{N}` is the service number (1, 2, 3, etc.).
 
-**Note**: IAM role creation is not supported. You must provide a pre-existing ECS Task Execution Role ARN with permissions to access Secrets Manager and ECR.
+**Note**: IAM roles are created automatically by the stack. Each service gets dedicated ECS task execution and task roles with appropriate permissions.
 
 ## Adding a New Service
 
@@ -100,7 +99,6 @@ To add a new service after initial deployment:
 export SERVICE3_NAME="payments"
 export SERVICE3_PATH="/payments"
 export SERVICE3_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-payments-cert-zzz"
-export SERVICE3_TASK_ROLE_ARN="arn:aws:iam::123456789012:role/ecsTaskExecutionRole"
 
 # Deploy only the new service stack
 npx cdk deploy KongKonnectStack-Service-payments

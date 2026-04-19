@@ -16,7 +16,6 @@ export interface KongInfrastructureStackProps extends cdk.StackProps {
         maxAzs?: number;
         natGateways?: number;
         enableFlowLogs?: boolean;
-        flowLogRoleArn?: string;
         enableVpcEndpoints?: boolean;
         transitGatewayId?: string;
         transitGatewayRoutes?: string[];
@@ -51,7 +50,6 @@ export interface KongInfrastructureStackProps extends cdk.StackProps {
         centralDestinationArn?: string;
         logGroupNames?: string[];
         filterPattern?: string;
-        subscriptionRoleArn?: string;
     };
 }
 
@@ -78,7 +76,6 @@ export class KongInfrastructureStack extends cdk.Stack {
             maxAzs: props.vpc?.maxAzs,
             natGateways: props.vpc?.natGateways,
             enableFlowLogs: props.vpc?.enableFlowLogs,
-            flowLogRoleArn: props.vpc?.flowLogRoleArn,
             enableVpcEndpoints: props.vpc?.enableVpcEndpoints,
             transitGatewayId: props.vpc?.transitGatewayId,
             transitGatewayRoutes: props.vpc?.transitGatewayRoutes,
@@ -157,7 +154,6 @@ export class KongInfrastructureStack extends cdk.Stack {
                     centralDestinationArn: props.logging.centralDestinationArn,
                     logGroupNames: uniqueLogGroups,
                     filterPattern: props.logging.filterPattern,
-                    subscriptionRoleArn: props.logging.subscriptionRoleArn,
                 });
             }
         }

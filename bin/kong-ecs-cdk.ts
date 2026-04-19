@@ -7,19 +7,10 @@ import { KongInfrastructureStack } from '../lib/kong-infrastructure-stack';
 const app = new cdk.App();
 
 // Get environment for naming conventions
-// Environment: dev, qa, uat, prd
+// Environment examples: dev, qa, uat, prd
 const environment = app.node.tryGetContext('environment') || process.env.ENVIRONMENT;
 if (!environment) {
-    throw new Error('ENVIRONMENT is required (dev, qa, uat, prd)');
-}
-
-// Validate environment value
-const validEnvironments = ['dev', 'qa', 'uat', 'prd'];
-
-if (!validEnvironments.includes(environment)) {
-    throw new Error(
-        `Invalid ENVIRONMENT: ${environment}. Must be one of: ${validEnvironments.join(', ')}`
-    );
+    throw new Error('ENVIRONMENT is required (examples: dev, qa, uat, prd)');
 }
 
 // Service configuration - can specify multiple services
@@ -116,10 +107,10 @@ const env = {
     region: process.env.CDK_DEFAULT_REGION,
 };
 
-const synthesizer = new cdk.DefaultStackSynthesizer({
-    qualifier:
-        app.node.tryGetContext('qualifier') || process.env.CDK_QUALIFIER || 'konginfra',
-});
+const qualifier = app.node.tryGetContext('qualifier') || process.env.CDK_QUALIFIER;
+const synthesizer = qualifier
+    ? new cdk.DefaultStackSynthesizer({ qualifier })
+    : undefined;
 
 const albDomain = app.node.tryGetContext('albDomain') || process.env.ALB_DOMAIN;
 
@@ -128,7 +119,7 @@ const albDomain = app.node.tryGetContext('albDomain') || process.env.ALB_DOMAIN;
 // Provide role ARNs via environment variables or CDK context.
 const infraStack = new KongInfrastructureStack(app, infraStackName, {
     env,
-    synthesizer,
+    ...(synthesizer && { synthesizer }),
     environment,
     vpc: {
         vpcCidr: app.node.tryGetContext('vpcCidr') || process.env.VPC_CIDR,
@@ -142,9 +133,6 @@ const infraStack = new KongInfrastructureStack(app, infraStackName, {
             (app.node.tryGetContext('vpcEnableFlowLogs') ||
                 process.env.VPC_ENABLE_FLOW_LOGS ||
                 'true') === 'true',
-        flowLogRoleArn:
-            app.node.tryGetContext('vpcFlowLogRoleArn') ||
-            process.env.VPC_FLOW_LOG_ROLE_ARN,
         enableVpcEndpoints:
             (app.node.tryGetContext('vpcEnableEndpoints') ||
                 process.env.VPC_ENABLE_ENDPOINTS ||
@@ -228,28 +216,8 @@ const infraStack = new KongInfrastructureStack(app, infraStackName, {
         filterPattern:
             app.node.tryGetContext('loggingFilterPattern') ||
             process.env.LOGGING_FILTER_PATTERN,
-        subscriptionRoleArn:
-            app.node.tryGetContext('loggingSubscriptionRoleArn') ||
-            process.env.LOGGING_SUBSCRIPTION_ROLE_ARN,
     },
 });
-
-// Get shared ECS IAM roles (optional - will be created if not provided)
-const ecsTaskExecutionRoleArn =
-    app.node.tryGetContext('ecsTaskExecutionRoleArn') ||
-    process.env.ECS_TASK_EXECUTION_ROLE_ARN;
-
-const ecsTaskRoleArn =
-    app.node.tryGetContext('ecsTaskRoleArn') || process.env.ECS_TASK_ROLE_ARN;
-
-// Note: If IAM roles are not provided, they will be automatically created with appropriate permissions
-
-// Cross-account deploy role for the kong-plugin pipeline.
-// Set to the OIDC role ARN used by the kong-plugin Bitbucket pipeline (OIDC_PLUGIN_ROLE).
-// When set, each service stack creates a scoped IAM role that the pipeline can assume
-// to call `aws cloudformation update-stack` with a new ContainerImage value.
-const pluginDeployRoleArn =
-    app.node.tryGetContext('pluginDeployRoleArn') || process.env.PLUGIN_DEPLOY_ROLE_ARN;
 
 // Deploy service stacks (depends on infrastructure stack)
 const serviceStacks: KongServiceStack[] = [];
@@ -269,7 +237,7 @@ services.forEach((service, index) => {
 
     const serviceStack = new KongServiceStack(app, serviceStackName, {
         env,
-        synthesizer,
+        ...(synthesizer && { synthesizer }),
         system: service.appName,
         environment,
         appName: service.appName,
@@ -278,9 +246,6 @@ services.forEach((service, index) => {
         vpc: infraStack.vpcConstruct.vpc,
         mtlsListenerArn,
         albSecurityGroupId: infraStack.albConstruct.securityGroup.securityGroupId,
-        ecsTaskExecutionRoleArn,
-        ecsTaskRoleArn,
-        pluginDeployRoleArn,
         kongLogLevel: service.logLevel || 'notice',
         dataPlane: {
             cpu: service.cpu,
@@ -299,10 +264,6 @@ services.forEach((service, index) => {
             filterPattern:
                 app.node.tryGetContext('loggingFilterPattern') ||
                 process.env.LOGGING_FILTER_PATTERN,
-            subscriptionRoleArn:
-                app.node.tryGetContext('loggingSubscriptionRoleArn') ||
-                process.env.LOGGING_SUBSCRIPTION_ROLE_ARN ||
-                infraStack.loggingConstruct?.subscriptionRole?.roleArn,
         },
         dpResilience: {
             enabled:

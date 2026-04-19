@@ -10,7 +10,6 @@ export interface VpcConstructProps {
     maxAzs?: number;
     natGateways?: number;
     enableFlowLogs?: boolean;
-    flowLogRoleArn?: string; // IAM role ARN for VPC Flow Logs to CloudWatch (optional, will auto-create if not provided)
     enableVpcEndpoints?: boolean;
     transitGatewayId?: string;
     transitGatewayRoutes?: string[]; // CIDR blocks to route through TGW
@@ -32,7 +31,6 @@ export class VpcConstruct extends Construct {
             maxAzs = 2,
             natGateways = 1,
             enableFlowLogs = true,
-            flowLogRoleArn,
             enableVpcEndpoints = true,
             transitGatewayId,
             transitGatewayRoutes = [],
@@ -67,42 +65,27 @@ export class VpcConstruct extends Construct {
             });
 
             // Create or import IAM role for VPC Flow Logs
-            let flowLogRole: iam.IRole;
-            if (flowLogRoleArn) {
-                // Import existing role
-                flowLogRole = iam.Role.fromRoleArn(
-                    this,
-                    'VpcFlowLogRole',
-                    flowLogRoleArn,
-                    {
-                        mutable: false,
-                    }
-                );
-            } else {
-                // Create new role for VPC Flow Logs
-                const newFlowLogRole = new iam.Role(this, 'VpcFlowLogRole', {
-                    roleName: `kong-vpc-flowlog-role-${this.environmentName}`,
-                    assumedBy: new iam.ServicePrincipal('vpc-flow-logs.amazonaws.com'),
-                    description: `IAM role for VPC Flow Logs (${this.environmentName})`,
-                });
+            // Create new role for VPC Flow Logs
+            const newFlowLogRole = new iam.Role(this, 'VpcFlowLogRole', {
+                roleName: `kong-vpc-flowlog-role-${this.environmentName}`,
+                assumedBy: new iam.ServicePrincipal('vpc-flow-logs.amazonaws.com'),
+                description: `IAM role for VPC Flow Logs (${this.environmentName})`,
+            });
 
-                // Grant permissions to write to CloudWatch Logs
-                newFlowLogRole.addToPolicy(
-                    new iam.PolicyStatement({
-                        effect: iam.Effect.ALLOW,
-                        actions: [
-                            'logs:CreateLogGroup',
-                            'logs:CreateLogStream',
-                            'logs:PutLogEvents',
-                            'logs:DescribeLogGroups',
-                            'logs:DescribeLogStreams',
-                        ],
-                        resources: [this.flowLogGroup.logGroupArn],
-                    })
-                );
-
-                flowLogRole = newFlowLogRole;
-            }
+            // Grant permissions to write to CloudWatch Logs
+            newFlowLogRole.addToPolicy(
+                new iam.PolicyStatement({
+                    effect: iam.Effect.ALLOW,
+                    actions: [
+                        'logs:CreateLogGroup',
+                        'logs:CreateLogStream',
+                        'logs:PutLogEvents',
+                        'logs:DescribeLogGroups',
+                        'logs:DescribeLogStreams',
+                    ],
+                    resources: [this.flowLogGroup.logGroupArn],
+                })
+            );
 
             // Enable VPC Flow Logs with IAM role
             new ec2.CfnFlowLog(this, 'VpcFlowLog', {
@@ -111,7 +94,7 @@ export class VpcConstruct extends Construct {
                 trafficType: 'ALL', // Options: ACCEPT, REJECT, ALL
                 logDestinationType: 'cloud-watch-logs',
                 logGroupName: this.flowLogGroup.logGroupName,
-                deliverLogsPermissionArn: flowLogRole.roleArn,
+                deliverLogsPermissionArn: newFlowLogRole.roleArn,
             });
         }
 

@@ -24,16 +24,6 @@ export interface KongServiceStackProps extends cdk.StackProps {
     mtlsListenerArn: string; // HTTPS listener on port 443 (mTLS)
     albSecurityGroupId: string;
 
-    // Optional - IAM roles (will be created if not provided)
-    ecsTaskExecutionRoleArn?: string; // Role for starting tasks (pulling images, secrets)
-    ecsTaskRoleArn?: string; // Role for running tasks (S3, logs, Lambda)
-
-    // Optional - cross-account deploy role for the kong-plugin pipeline.
-    // When provided, a scoped IAM role is created in this stack that trusts the
-    // given ARN and grants only the permissions needed to update the ContainerImage
-    // parameter via `aws cloudformation update-stack`.
-    pluginDeployRoleArn?: string;
-
     dataPlane?: {
         cpu?: number;
         memoryMiB?: number;
@@ -46,13 +36,11 @@ export interface KongServiceStackProps extends cdk.StackProps {
         enabled?: boolean;
         centralDestinationArn?: string;
         filterPattern?: string;
-        subscriptionRoleArn?: string;
     };
 
     kongLogLevel?: string; // Kong log level (default: notice)
 
     // Data Plane Resilience Configuration (S3 Config Backup)
-    // Note: ecsTaskExecutionRoleArn must have S3 permissions attached for DP resilience
     dpResilience?: {
         enabled?: boolean;
         bucketName?: string;
@@ -98,8 +86,6 @@ export class KongServiceStack extends cdk.Stack {
     private readonly kongLogLevel: string;
     private readonly containerImageParam: cdk.CfnParameter;
     private readonly konnectControlPlaneSecretArn: string;
-    private ecsTaskExecutionRoleArn?: string;
-    private ecsTaskRoleArn?: string;
     private ecsTaskExecutionRole?: iam.IRole;
     private ecsTaskRole?: iam.IRole;
     private readonly vpc: ec2.IVpc;
@@ -136,8 +122,6 @@ export class KongServiceStack extends cdk.Stack {
             default: props.dataPlane?.imageUri,
         });
         this.konnectControlPlaneSecretArn = props.konnectControlPlaneSecretArn;
-        this.ecsTaskExecutionRoleArn = props.ecsTaskExecutionRoleArn;
-        this.ecsTaskRoleArn = props.ecsTaskRoleArn;
         this.vpc = props.vpc;
         this.mtlsListenerArn = props.mtlsListenerArn;
         this.albSecurityGroupId = props.albSecurityGroupId;
@@ -244,7 +228,6 @@ export class KongServiceStack extends cdk.Stack {
                 centralDestinationArn: props.logging.centralDestinationArn,
                 logGroupNames: logGroups,
                 filterPattern: props.logging.filterPattern,
-                subscriptionRoleArn: props.logging.subscriptionRoleArn,
             });
         }
 
@@ -310,66 +293,6 @@ export class KongServiceStack extends cdk.Stack {
             description: 'Path prefix for routing',
         });
 
-        // Cross-account deploy role for the kong-plugin pipeline (if configured).
-        // This role is assumed by the pipeline's OIDC role in the build account and
-        // grants only the permissions needed to update the ContainerImage CFn parameter.
-        if (props.pluginDeployRoleArn) {
-            const ecsDeployRole = new iam.Role(this, 'EcsDeployRole', {
-                roleName: `kong-${this.appName}-ecs-deploy-role-${this.environmentName}`,
-                assumedBy: new iam.ArnPrincipal(props.pluginDeployRoleArn),
-                description: `Allows the kong-plugin pipeline to update the ContainerImage for the Kong ${this.appName} data plane`,
-            });
-
-            // CloudFormation stack operations (describe, update, wait)
-            ecsDeployRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: [
-                        'cloudformation:DescribeStacks',
-                        'cloudformation:UpdateStack',
-                        'cloudformation:DescribeStackEvents',
-                    ],
-                    resources: [
-                        `arn:aws:cloudformation:${this.region}:${this.account}:stack/${this.stackName}/*`,
-                    ],
-                })
-            );
-
-            // RegisterTaskDefinition/DescribeTaskDefinition do not support resource-level
-            // restrictions in IAM — AWS requires * for these actions
-            ecsDeployRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: ['ecs:RegisterTaskDefinition', 'ecs:DescribeTaskDefinition'],
-                    resources: ['*'],
-                })
-            );
-
-            // UpdateService/DescribeServices scoped to the specific ECS service in this stack
-            ecsDeployRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: ['ecs:UpdateService', 'ecs:DescribeServices'],
-                    resources: [this.ecsService.serviceArn],
-                })
-            );
-
-            // iam:PassRole is required so CloudFormation can pass the existing task
-            // execution and task roles into the newly registered task definition revision
-            ecsDeployRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: ['iam:PassRole'],
-                    resources: [this.ecsTaskExecutionRoleArn!, this.ecsTaskRoleArn!],
-                })
-            );
-
-            new cdk.CfnOutput(this, 'EcsDeployRoleArn', {
-                value: ecsDeployRole.roleArn,
-                description: `Cross-account IAM role for the kong-plugin pipeline to assume when deploying a new container image to Kong ${this.appName}`,
-            });
-        }
-
         // Backup node outputs (if DP resilience is enabled)
         if (this.backupService) {
             new cdk.CfnOutput(this, 'BackupServiceName', {
@@ -416,190 +339,160 @@ export class KongServiceStack extends cdk.Stack {
                     ],
                 }),
                 description:
-                    'IAM permissions required for ecsTaskExecutionRoleArn (S3 read/write for DP resilience)',
+                    'IAM permissions required for ECS task execution role (S3 read/write for DP resilience)',
             });
         }
     }
 
     /**
-     * Setup IAM roles - create if not provided, otherwise import existing roles
+     * Setup IAM roles - always create new roles for the service
      */
     private setupIamRoles(props: KongServiceStackProps): void {
         // Task Execution Role (for pulling images, accessing secrets)
-        if (props.ecsTaskExecutionRoleArn) {
-            // Import existing role
-            this.ecsTaskExecutionRoleArn = props.ecsTaskExecutionRoleArn;
-            this.ecsTaskExecutionRole = iam.Role.fromRoleArn(
-                this,
-                'DpExecutionRole',
-                props.ecsTaskExecutionRoleArn,
-                {
-                    mutable: false,
-                }
-            );
-        } else {
-            // Create new execution role
-            const executionRole = new iam.Role(this, 'DpExecutionRole', {
-                roleName: `kong-${this.appName}-task-execution-role-${this.environmentName}`,
-                assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-                description: `ECS Task Execution Role for Kong ${this.appName} data plane`,
-                managedPolicies: [
-                    iam.ManagedPolicy.fromAwsManagedPolicyName(
-                        'service-role/AmazonECSTaskExecutionRolePolicy'
-                    ),
-                ],
-            });
+        const executionRole = new iam.Role(this, 'DpExecutionRole', {
+            roleName: `kong-${this.appName}-task-execution-role-${this.environmentName}`,
+            assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+            description: `ECS Task Execution Role for Kong ${this.appName} data plane`,
+            managedPolicies: [
+                iam.ManagedPolicy.fromAwsManagedPolicyName(
+                    'service-role/AmazonECSTaskExecutionRolePolicy'
+                ),
+            ],
+        });
 
-            // Grant access to Konnect secret
-            const konnectSecret = secretsmanager.Secret.fromSecretCompleteArn(
-                this,
-                'KonnectSecretForRole',
-                this.konnectControlPlaneSecretArn
-            );
-            konnectSecret.grantRead(executionRole);
+        // Grant access to Konnect secret
+        const konnectSecret = secretsmanager.Secret.fromSecretCompleteArn(
+            this,
+            'KonnectSecretForRole',
+            this.konnectControlPlaneSecretArn
+        );
+        konnectSecret.grantRead(executionRole);
 
-            // Add KMS permissions for decrypting Secrets Manager secrets
+        // Add KMS permissions for decrypting Secrets Manager secrets
+        executionRole.addToPolicy(
+            new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ['kms:Decrypt', 'kms:DescribeKey'],
+                resources: ['*'],
+                conditions: {
+                    StringEquals: {
+                        'kms:ViaService': `secretsmanager.${cdk.Stack.of(this).region}.amazonaws.com`,
+                    },
+                },
+            })
+        );
+
+        // Add S3 permissions if DP resilience is enabled
+        if (props.dpResilience?.enabled && props.dpResilience.bucketName) {
             executionRole.addToPolicy(
                 new iam.PolicyStatement({
                     effect: iam.Effect.ALLOW,
-                    actions: ['kms:Decrypt', 'kms:DescribeKey'],
-                    resources: ['*'],
-                    conditions: {
-                        StringEquals: {
-                            'kms:ViaService': `secretsmanager.${cdk.Stack.of(this).region}.amazonaws.com`,
-                        },
-                    },
+                    actions: [
+                        's3:GetObject',
+                        's3:PutObject',
+                        's3:DeleteObject',
+                        's3:ListBucket',
+                    ],
+                    resources: [
+                        `arn:aws:s3:::${props.dpResilience.bucketName}`,
+                        `arn:aws:s3:::${props.dpResilience.bucketName}/*`,
+                    ],
                 })
             );
 
-            // Add S3 permissions if DP resilience is enabled
-            if (props.dpResilience?.enabled && props.dpResilience.bucketName) {
+            // Add KMS permissions if KMS key is provided
+            if (props.dpResilience.kmsKeyArn) {
                 executionRole.addToPolicy(
                     new iam.PolicyStatement({
                         effect: iam.Effect.ALLOW,
                         actions: [
-                            's3:GetObject',
-                            's3:PutObject',
-                            's3:DeleteObject',
-                            's3:ListBucket',
+                            'kms:Decrypt',
+                            'kms:DescribeKey',
+                            'kms:Encrypt',
+                            'kms:GenerateDataKey',
                         ],
-                        resources: [
-                            `arn:aws:s3:::${props.dpResilience.bucketName}`,
-                            `arn:aws:s3:::${props.dpResilience.bucketName}/*`,
-                        ],
+                        resources: [props.dpResilience.kmsKeyArn],
                     })
                 );
-
-                // Add KMS permissions if KMS key is provided
-                if (props.dpResilience.kmsKeyArn) {
-                    executionRole.addToPolicy(
-                        new iam.PolicyStatement({
-                            effect: iam.Effect.ALLOW,
-                            actions: [
-                                'kms:Decrypt',
-                                'kms:DescribeKey',
-                                'kms:Encrypt',
-                                'kms:GenerateDataKey',
-                            ],
-                            resources: [props.dpResilience.kmsKeyArn],
-                        })
-                    );
-                }
             }
-
-            this.ecsTaskExecutionRole = executionRole;
-            this.ecsTaskExecutionRoleArn = executionRole.roleArn;
         }
 
-        // Task Role (for runtime permissions: S3, logs, Lambda invocations)
-        if (props.ecsTaskRoleArn) {
-            // Import existing role
-            this.ecsTaskRoleArn = props.ecsTaskRoleArn;
-            this.ecsTaskRole = iam.Role.fromRoleArn(
-                this,
-                'DpTaskRole',
-                props.ecsTaskRoleArn,
-                {
-                    mutable: false,
-                }
-            );
-        } else {
-            // Create new task role
-            const taskRole = new iam.Role(this, 'DpTaskRole', {
-                roleName: `kong-${this.appName}-task-role-${this.environmentName}`,
-                assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-                description: `ECS Task Role for Kong ${this.appName} data plane runtime`,
-            });
+        this.ecsTaskExecutionRole = executionRole;
 
-            // Add CloudWatch Logs permissions
+        // Task Role (for runtime permissions: S3, logs, Lambda invocations)
+        const taskRole = new iam.Role(this, 'DpTaskRole', {
+            roleName: `kong-${this.appName}-task-role-${this.environmentName}`,
+            assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
+            description: `ECS Task Role for Kong ${this.appName} data plane runtime`,
+        });
+
+        // Add CloudWatch Logs permissions
+        taskRole.addToPolicy(
+            new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: [
+                    'logs:CreateLogGroup',
+                    'logs:CreateLogStream',
+                    'logs:PutLogEvents',
+                ],
+                resources: ['*'],
+            })
+        );
+
+        // Add S3 permissions if DP resilience is enabled
+        if (props.dpResilience?.enabled && props.dpResilience.bucketName) {
             taskRole.addToPolicy(
                 new iam.PolicyStatement({
                     effect: iam.Effect.ALLOW,
                     actions: [
-                        'logs:CreateLogGroup',
-                        'logs:CreateLogStream',
-                        'logs:PutLogEvents',
+                        's3:GetObject',
+                        's3:PutObject',
+                        's3:DeleteObject',
+                        's3:ListBucket',
                     ],
-                    resources: ['*'],
+                    resources: [
+                        `arn:aws:s3:::${props.dpResilience.bucketName}`,
+                        `arn:aws:s3:::${props.dpResilience.bucketName}/*`,
+                    ],
                 })
             );
 
-            // Add S3 permissions if DP resilience is enabled
-            if (props.dpResilience?.enabled && props.dpResilience.bucketName) {
+            // Add KMS permissions if KMS key is provided
+            if (props.dpResilience.kmsKeyArn) {
                 taskRole.addToPolicy(
                     new iam.PolicyStatement({
                         effect: iam.Effect.ALLOW,
                         actions: [
-                            's3:GetObject',
-                            's3:PutObject',
-                            's3:DeleteObject',
-                            's3:ListBucket',
+                            'kms:Decrypt',
+                            'kms:DescribeKey',
+                            'kms:Encrypt',
+                            'kms:GenerateDataKey',
                         ],
-                        resources: [
-                            `arn:aws:s3:::${props.dpResilience.bucketName}`,
-                            `arn:aws:s3:::${props.dpResilience.bucketName}/*`,
-                        ],
+                        resources: [props.dpResilience.kmsKeyArn],
                     })
                 );
-
-                // Add KMS permissions if KMS key is provided
-                if (props.dpResilience.kmsKeyArn) {
-                    taskRole.addToPolicy(
-                        new iam.PolicyStatement({
-                            effect: iam.Effect.ALLOW,
-                            actions: [
-                                'kms:Decrypt',
-                                'kms:DescribeKey',
-                                'kms:Encrypt',
-                                'kms:GenerateDataKey',
-                            ],
-                            resources: [props.dpResilience.kmsKeyArn],
-                        })
-                    );
-                }
             }
-
-            // Add Lambda invocation permissions (commonly needed for Kong AWS Lambda plugin)
-            taskRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: ['lambda:InvokeFunction'],
-                    resources: ['*'], // Can be restricted to specific Lambda functions if needed
-                })
-            );
-
-            // Add STS AssumeRole permission (for assumeRole-based Lambda plugin)
-            taskRole.addToPolicy(
-                new iam.PolicyStatement({
-                    effect: iam.Effect.ALLOW,
-                    actions: ['sts:AssumeRole'],
-                    resources: ['*'], // Can be restricted to specific roles if needed
-                })
-            );
-
-            this.ecsTaskRole = taskRole;
-            this.ecsTaskRoleArn = taskRole.roleArn;
         }
+
+        // Add Lambda invocation permissions (commonly needed for Kong AWS Lambda plugin)
+        taskRole.addToPolicy(
+            new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ['lambda:InvokeFunction'],
+                resources: ['*'], // Can be restricted to specific Lambda functions if needed
+            })
+        );
+
+        // Add STS AssumeRole permission (for assumeRole-based Lambda plugin)
+        taskRole.addToPolicy(
+            new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                actions: ['sts:AssumeRole'],
+                resources: ['*'], // Can be restricted to specific roles if needed
+            })
+        );
+
+        this.ecsTaskRole = taskRole;
     }
 
     private calculatePriority(pathPrefix: string): number {

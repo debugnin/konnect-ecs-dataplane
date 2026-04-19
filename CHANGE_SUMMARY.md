@@ -360,9 +360,7 @@ export SERVICE1_NAME=customers
 export SERVICE1_PATH=/customers
 export SERVICE1_SECRET_ARN=arn:aws:secretsmanager:ap-southeast-2:123456789012:secret:...
 
-# Set IAM role parameters (pre-created)
-export ECS_TASK_EXECUTION_ROLE_ARN=arn:aws:iam::123456789012:role/...
-export ECS_TASK_ROLE_ARN=arn:aws:iam::123456789012:role/...
+# Note: IAM roles are created automatically by the stacks
 
 # Deploy
 npx cdk deploy --all

@@ -33,6 +33,7 @@ Each region has its own independent ALB with **automated Route53 failover**:
 ```
 
 **Benefits:**
+
 - ✅ **Fully automated failover** - No manual Route53 configuration needed
 - ✅ Complete regional independence
 - ✅ Simple per-region management
@@ -40,6 +41,7 @@ Each region has its own independent ALB with **automated Route53 failover**:
 - ✅ 1-2 minute automatic failover time
 
 **Trade-offs:**
+
 - Failover takes 1-2 minutes (health check detection + DNS TTL)
 
 ## Deployment Flow
@@ -53,6 +55,7 @@ The Bitbucket pipeline deploys with **automated Route53 failover** in the follow
 ```
 
 **Automated Features:**
+
 - ✅ Primary region creates ALB with Route53 FAILOVER PRIMARY record + health check
 - ✅ Secondary region creates ALB with Route53 FAILOVER SECONDARY record
 - ✅ Route53 automatically fails over to secondary when primary health check fails (1-2 min detection)
@@ -63,11 +66,11 @@ The Bitbucket pipeline deploys with **automated Route53 failover** in the follow
 
 ### Required for Multi-Region
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `AWS_DEFAULT_REGION` | Primary region (Sydney) | `ap-southeast-2` |
-| `AWS_SECONDARY_REGION` | Secondary region (Melbourne) | `ap-southeast-4` |
-| `REGIONAL_SUFFIX` | Stack name suffix for secondary region only | `secondary` (auto-set by pipeline) |
+| Variable               | Description                                 | Example                            |
+| ---------------------- | ------------------------------------------- | ---------------------------------- |
+| `AWS_DEFAULT_REGION`   | Primary region (Sydney)                     | `ap-southeast-2`                   |
+| `AWS_SECONDARY_REGION` | Secondary region (Melbourne)                | `ap-southeast-4`                   |
+| `REGIONAL_SUFFIX`      | Stack name suffix for secondary region only | `secondary` (auto-set by pipeline) |
 
 ### Existing Required Variables
 
@@ -76,18 +79,18 @@ All existing environment variables from the single-region setup are still requir
 - `ALB_DOMAIN`
 - `ALB_HOSTED_ZONE_ID`
 - `ALB_HOSTED_ZONE_NAME`
-- `ECS_TASK_EXECUTION_ROLE_ARN`
-- `ECS_TASK_ROLE_ARN`
 - `SERVICE1_NAME`, `SERVICE1_PATH`, `SERVICE1_SECRET_ARN`
 - etc.
 
 ## Stack Naming Convention
 
 ### Primary Region (Sydney)
+
 - `kong-infra-stack` (ap-southeast-2)
 - `kong-{appName}-service-stack` (ap-southeast-2)
 
 ### Secondary Region (Melbourne)
+
 - `kong-infra-stack-secondary` (ap-southeast-4)
 - `kong-{appName}-service-stack-secondary` (ap-southeast-4)
 
@@ -98,18 +101,20 @@ All existing environment variables from the single-region setup are still requir
 **No manual configuration required!** The CDK deployment automatically creates:
 
 ### Primary Region (Sydney)
+
 - Route53 A Record with:
-  - `SetIdentifier`: "Primary"
-  - `Failover`: PRIMARY
-  - `HealthCheck`: HTTPS check to `api.example.com/health` every 30 seconds
-  - ALB alias target
+    - `SetIdentifier`: "Primary"
+    - `Failover`: PRIMARY
+    - `HealthCheck`: HTTPS check to `api.example.com/health` every 30 seconds
+    - ALB alias target
 
 ### Secondary Region (Melbourne)
+
 - Route53 A Record with:
-  - `SetIdentifier`: "Secondary"
-  - `Failover`: SECONDARY
-  - ALB alias target
-  - Activated automatically when primary health check fails
+    - `SetIdentifier`: "Secondary"
+    - `Failover`: SECONDARY
+    - ALB alias target
+    - Activated automatically when primary health check fails
 
 ### How Failover Works
 
@@ -344,11 +349,13 @@ npx cdk deploy --all --require-approval never --context regionalSuffix=secondary
 ### Primary Region Failure (Automated ✅)
 
 With the **automated failover routing** (default):
+
 1. Route53 health check detects primary region failure (3 consecutive failures = 90 seconds)
 2. Traffic automatically routes to Melbourne (SECONDARY) within 1-2 minutes
 3. **No manual intervention required**
 
 With **custom weighted/latency routing** (if manually configured):
+
 1. Update Route53 to set Sydney weight to 0 or remove Sydney record
 2. All traffic routes to Melbourne
 3. Requires manual DNS update
@@ -356,12 +363,14 @@ With **custom weighted/latency routing** (if manually configured):
 ### Restoring Primary Region (Automated ✅)
 
 With the **automated failover routing** (default):
+
 1. Fix issues in Sydney region
 2. Health checks pass automatically (3 consecutive successes)
 3. Route53 automatically fails back to PRIMARY
 4. **No manual intervention required**
 
 With **custom routing** (if manually configured):
+
 1. Fix issues in Sydney region
 2. Restore weights/latency routing or re-enable Sydney record
 3. Requires manual DNS update
@@ -392,9 +401,9 @@ Monitor both regions:
 
 1. **CloudWatch Dashboards**: Create dashboards for each region
 2. **CloudWatch Alarms**: Set up alarms for:
-   - ECS task health
-   - ALB target health
-   - Route53 health check status
+    - ECS task health
+    - ALB target health
+    - Route53 health check status
 3. **X-Ray**: Trace requests across regions
 4. **New Relic**: Unified view of both regions (if metrics streaming enabled)
 

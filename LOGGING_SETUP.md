@@ -157,8 +157,7 @@ LOGGING_LOG_GROUP_NAMES=/ecs/kong-data-plane-customers
 # Optional: Filter pattern (default: "" = all logs)
 LOGGING_FILTER_PATTERN=""
 
-# Optional: Pre-created IAM role ARN for subscription filters
-# LOGGING_SUBSCRIPTION_ROLE_ARN=arn:aws:iam::SOURCE_ACCOUNT:role/KongLogStreamingRole
+# Note: IAM role for subscription filters is created automatically by the stack
 ```
 
 ### Automatically Collected Log Groups
@@ -325,11 +324,7 @@ If you prefer to create the subscription role manually instead of letting CDK cr
 }
 ```
 
-Then pass the role ARN via environment variable:
-
-```bash
-LOGGING_SUBSCRIPTION_ROLE_ARN=arn:aws:iam::SOURCE_ACCOUNT:role/KongLogStreamingRole
-```
+**Note**: The stack automatically creates an IAM role with these permissions. No manual role creation is required.
 
 ## References
 

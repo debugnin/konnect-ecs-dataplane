@@ -105,7 +105,6 @@ DP_RESILIENCE_KMS_KEY_ARN=arn:aws:kms:ap-southeast-2:ACCOUNT:key/KEY_ID
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:ap-southeast-2:ACCOUNT:secret:kong-customers-cert" \
-SERVICE1_TASK_ROLE_ARN="arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole" \
 SERVICE1_REPLICAS=3 \
 DP_RESILIENCE_ENABLED=true \
 npx cdk deploy KongKonnectStack-Service-customers
@@ -121,7 +120,6 @@ npx cdk deploy KongKonnectStack-Infrastructure
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:...:kong-customers-cert" \
-SERVICE1_TASK_ROLE_ARN="arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole" \
 SERVICE1_REPLICAS=3 \
 DP_RESILIENCE_ENABLED=true \
 npx cdk deploy KongKonnectStack-Service-customers
@@ -130,7 +128,6 @@ npx cdk deploy KongKonnectStack-Service-customers
 SERVICE2_NAME="bookings" \
 SERVICE2_PATH="/bookings" \
 SERVICE2_SECRET_ARN="arn:aws:secretsmanager:...:kong-bookings-cert" \
-SERVICE2_TASK_ROLE_ARN="arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole" \
 SERVICE2_REPLICAS=2 \
 DP_RESILIENCE_ENABLED=true \
 npx cdk deploy KongKonnectStack-Service-bookings
@@ -143,7 +140,6 @@ npx cdk deploy KongKonnectStack-Service-bookings
 SERVICE1_NAME="legacy" \
 SERVICE1_PATH="/legacy" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:...:kong-legacy-cert" \
-SERVICE1_TASK_ROLE_ARN="arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole" \
 SERVICE1_REPLICAS=2 \
 DP_RESILIENCE_ENABLED=false \
 npx cdk deploy KongKonnectStack-Service-legacy
