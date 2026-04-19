@@ -3,6 +3,8 @@
 import * as cdk from 'aws-cdk-lib';
 import { KongServiceStack } from '../lib/kong-service-stack';
 import { KongInfrastructureStack } from '../lib/kong-infrastructure-stack';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const app = new cdk.App();
 
@@ -11,6 +13,33 @@ const app = new cdk.App();
 const environment = app.node.tryGetContext('environment') || process.env.ENVIRONMENT;
 if (!environment) {
     throw new Error('ENVIRONMENT is required (examples: dev, qa, uat, prd)');
+}
+
+// Load environment-specific configuration file
+let config: Record<string, any> = {};
+const configPath = path.join(__dirname, '..', 'config', `${environment}.json`);
+if (fs.existsSync(configPath)) {
+    const configFile = fs.readFileSync(configPath, 'utf8');
+    config = JSON.parse(configFile);
+    console.log(`✓ Loaded configuration from config/${environment}.json`);
+} else {
+    console.log(
+        `⚠ No config file found at config/${environment}.json, using CDK context and environment variables`
+    );
+}
+
+/**
+ * Get configuration value with precedence:
+ * 1. config/{environment}.json
+ * 2. cdk.context.json (app.node.tryGetContext)
+ * 3. Environment variables
+ */
+function getConfig(key: string, envVar?: string): any {
+    return (
+        config[key] ??
+        app.node.tryGetContext(key) ??
+        (envVar ? process.env[envVar] : undefined)
+    );
 }
 
 // Service configuration - can specify multiple services
@@ -27,22 +56,24 @@ interface ServiceConfig {
 }
 
 // Default Kong image applied to all services unless overridden by SERVICE{N}_IMAGE_URI
-const defaultKongImage =
-    app.node.tryGetContext('defaultKongImage') || process.env.KONG_DEFAULT_IMAGE;
+const defaultKongImage = getConfig('defaultKongImage', 'KONG_DEFAULT_IMAGE');
 
 // Parse services from environment or context
 // Format: SERVICE1_NAME=customers,SERVICE1_PATH=/customers,SERVICE1_SECRET_ARN=arn:...,SERVICE2_NAME=...
 const services: ServiceConfig[] = [];
 for (let serviceIndex = 1; serviceIndex <= 100; serviceIndex++) {
-    const serviceName =
-        app.node.tryGetContext(`service${serviceIndex}Name`) ||
-        process.env[`SERVICE${serviceIndex}_NAME`];
-    const pathPrefix =
-        app.node.tryGetContext(`service${serviceIndex}Path`) ||
-        process.env[`SERVICE${serviceIndex}_PATH`];
-    const secretArn =
-        app.node.tryGetContext(`service${serviceIndex}SecretArn`) ||
-        process.env[`SERVICE${serviceIndex}_SECRET_ARN`];
+    const serviceName = getConfig(
+        `service${serviceIndex}Name`,
+        `SERVICE${serviceIndex}_NAME`
+    );
+    const pathPrefix = getConfig(
+        `service${serviceIndex}Path`,
+        `SERVICE${serviceIndex}_PATH`
+    );
+    const secretArn = getConfig(
+        `service${serviceIndex}SecretArn`,
+        `SERVICE${serviceIndex}_SECRET_ARN`
+    );
 
     if (!serviceName || !pathPrefix || !secretArn) {
         continue;
@@ -53,29 +84,29 @@ for (let serviceIndex = 1; serviceIndex <= 100; serviceIndex++) {
         pathPrefix,
         secretArn,
         cpu: Number(
-            app.node.tryGetContext(`service${serviceIndex}Cpu`) ||
-                process.env[`SERVICE${serviceIndex}_CPU`] ||
-                512
+            getConfig(`service${serviceIndex}Cpu`, `SERVICE${serviceIndex}_CPU`) || 512
         ),
         memory: Number(
-            app.node.tryGetContext(`service${serviceIndex}Memory`) ||
-                process.env[`SERVICE${serviceIndex}_MEMORY`] ||
+            getConfig(`service${serviceIndex}Memory`, `SERVICE${serviceIndex}_MEMORY`) ||
                 1024
         ),
         replicas: Number(
-            app.node.tryGetContext(`service${serviceIndex}Replicas`) ||
-                process.env[`SERVICE${serviceIndex}_REPLICAS`] ||
-                2
+            getConfig(
+                `service${serviceIndex}Replicas`,
+                `SERVICE${serviceIndex}_REPLICAS`
+            ) || 2
         ),
         logLevel:
-            app.node.tryGetContext(`service${serviceIndex}LogLevel`) ||
-            process.env[`SERVICE${serviceIndex}_LOG_LEVEL`] ||
-            undefined,
+            getConfig(
+                `service${serviceIndex}LogLevel`,
+                `SERVICE${serviceIndex}_LOG_LEVEL`
+            ) || undefined,
         imageUri: (() => {
             const uri =
-                app.node.tryGetContext(`service${serviceIndex}ImageUri`) ||
-                process.env[`SERVICE${serviceIndex}_IMAGE_URI`] ||
-                defaultKongImage;
+                getConfig(
+                    `service${serviceIndex}ImageUri`,
+                    `SERVICE${serviceIndex}_IMAGE_URI`
+                ) || defaultKongImage;
             if (!uri) {
                 throw new Error(
                     `Container image is required for service ${serviceIndex}. ` +
@@ -96,8 +127,7 @@ if (services.length === 0) {
 // Parameterise stack names following naming convention
 // Infrastructure is shared, so use "kong" as the system name
 // Service stacks use the serviceName as the system identifier
-const regionalSuffix =
-    app.node.tryGetContext('regionalSuffix') || process.env.REGIONAL_SUFFIX || '';
+const regionalSuffix = getConfig('regionalSuffix', 'REGIONAL_SUFFIX') || '';
 const infraStackName = regionalSuffix
     ? `kong-infra-stack-${environment}-${regionalSuffix}`
     : `kong-infra-stack-${environment}`;
@@ -107,12 +137,12 @@ const env = {
     region: process.env.CDK_DEFAULT_REGION,
 };
 
-const qualifier = app.node.tryGetContext('qualifier') || process.env.CDK_QUALIFIER;
+const qualifier = getConfig('qualifier', 'CDK_QUALIFIER');
 const synthesizer = qualifier
     ? new cdk.DefaultStackSynthesizer({ qualifier })
     : undefined;
 
-const albDomain = app.node.tryGetContext('albDomain') || process.env.ALB_DOMAIN;
+const albDomain = getConfig('albDomain', 'ALB_DOMAIN');
 
 // Deploy infrastructure stack (VPC, ALB, WAF)
 // Note: IAM roles are now managed centrally in the kong-iam project.
@@ -122,27 +152,17 @@ const infraStack = new KongInfrastructureStack(app, infraStackName, {
     ...(synthesizer && { synthesizer }),
     environment,
     vpc: {
-        vpcCidr: app.node.tryGetContext('vpcCidr') || process.env.VPC_CIDR,
-        maxAzs: Number(
-            app.node.tryGetContext('vpcMaxAzs') || process.env.VPC_MAX_AZS || 2
-        ),
-        natGateways: Number(
-            app.node.tryGetContext('vpcNatGateways') || process.env.VPC_NAT_GATEWAYS || 1
-        ),
+        vpcCidr: getConfig('vpcCidr', 'VPC_CIDR'),
+        maxAzs: Number(getConfig('vpcMaxAzs', 'VPC_MAX_AZS') || 2),
+        natGateways: Number(getConfig('vpcNatGateways', 'VPC_NAT_GATEWAYS') || 1),
         enableFlowLogs:
-            (app.node.tryGetContext('vpcEnableFlowLogs') ||
-                process.env.VPC_ENABLE_FLOW_LOGS ||
-                'true') === 'true',
+            (getConfig('vpcEnableFlowLogs', 'VPC_ENABLE_FLOW_LOGS') || 'true') === 'true',
         enableVpcEndpoints:
-            (app.node.tryGetContext('vpcEnableEndpoints') ||
-                process.env.VPC_ENABLE_ENDPOINTS ||
-                'true') === 'true',
-        transitGatewayId:
-            app.node.tryGetContext('transitGatewayId') || process.env.TRANSIT_GATEWAY_ID,
+            (getConfig('vpcEnableEndpoints', 'VPC_ENABLE_ENDPOINTS') || 'true') ===
+            'true',
+        transitGatewayId: getConfig('transitGatewayId', 'TRANSIT_GATEWAY_ID'),
         transitGatewayRoutes: (
-            app.node.tryGetContext('transitGatewayRoutes') ||
-            process.env.TRANSIT_GATEWAY_ROUTES ||
-            ''
+            getConfig('transitGatewayRoutes', 'TRANSIT_GATEWAY_ROUTES') || ''
         )
             .split(',')
             .map((cidr: string) => cidr.trim())
@@ -152,70 +172,48 @@ const infraStack = new KongInfrastructureStack(app, infraStackName, {
         ? {
               domainName: albDomain,
               subjectAlternativeNames: (
-                  app.node.tryGetContext('albSubjectAlternativeNames') ||
-                  process.env.ALB_SUBJECT_ALTERNATIVE_NAMES ||
-                  ''
+                  getConfig(
+                      'albSubjectAlternativeNames',
+                      'ALB_SUBJECT_ALTERNATIVE_NAMES'
+                  ) || ''
               )
                   .split(',')
                   .map((name: string) => name.trim())
                   .filter((name: string) => name.length > 0),
-              hostedZoneId:
-                  app.node.tryGetContext('albHostedZoneId') ||
-                  process.env.ALB_HOSTED_ZONE_ID,
-              hostedZoneName:
-                  app.node.tryGetContext('albHostedZoneName') ||
-                  process.env.ALB_HOSTED_ZONE_NAME,
+              hostedZoneId: getConfig('albHostedZoneId', 'ALB_HOSTED_ZONE_ID'),
+              hostedZoneName: getConfig('albHostedZoneName', 'ALB_HOSTED_ZONE_NAME'),
           }
         : undefined,
     waf: {
-        enabled:
-            (app.node.tryGetContext('wafEnabled') ||
-                process.env.WAF_ENABLED ||
-                'true') === 'true',
-        rateLimitPerMinute: Number(
-            app.node.tryGetContext('wafRateLimit') || process.env.WAF_RATE_LIMIT || 2000
-        ),
-        allowedCidrs: (
-            app.node.tryGetContext('wafAllowedCidrs') ||
-            process.env.WAF_ALLOWED_CIDRS ||
-            ''
-        )
+        enabled: (getConfig('wafEnabled', 'WAF_ENABLED') || 'true') === 'true',
+        rateLimitPerMinute: Number(getConfig('wafRateLimit', 'WAF_RATE_LIMIT') || 2000),
+        allowedCidrs: (getConfig('wafAllowedCidrs', 'WAF_ALLOWED_CIDRS') || '')
             .split(',')
             .map((cidr: string) => cidr.trim())
             .filter((cidr: string) => cidr.length > 0),
         enableCidrRestriction:
-            (app.node.tryGetContext('wafEnableCidrRestriction') ||
-                process.env.WAF_ENABLE_CIDR_RESTRICTION ||
+            (getConfig('wafEnableCidrRestriction', 'WAF_ENABLE_CIDR_RESTRICTION') ||
                 'true') === 'true',
     },
     alb: {
-        mtlsTrustStoreArn:
-            app.node.tryGetContext('mtlsTrustStoreArn') ||
-            process.env.MTLS_TRUST_STORE_ARN,
+        mtlsTrustStoreArn: getConfig('mtlsTrustStoreArn', 'MTLS_TRUST_STORE_ARN'),
         enableAccessLogs:
-            (app.node.tryGetContext('albEnableAccessLogs') ||
-                process.env.ALB_ENABLE_ACCESS_LOGS ||
-                'true') === 'true',
+            (getConfig('albEnableAccessLogs', 'ALB_ENABLE_ACCESS_LOGS') || 'true') ===
+            'true',
     },
     logging: {
-        enabled:
-            (app.node.tryGetContext('loggingEnabled') ||
-                process.env.LOGGING_ENABLED ||
-                'true') === 'true',
-        centralDestinationArn:
-            app.node.tryGetContext('loggingCentralDestinationArn') ||
-            process.env.LOGGING_CENTRAL_DESTINATION_ARN,
+        enabled: (getConfig('loggingEnabled', 'LOGGING_ENABLED') || 'true') === 'true',
+        centralDestinationArn: getConfig(
+            'loggingCentralDestinationArn',
+            'LOGGING_CENTRAL_DESTINATION_ARN'
+        ),
         logGroupNames: (
-            app.node.tryGetContext('loggingLogGroupNames') ||
-            process.env.LOGGING_LOG_GROUP_NAMES ||
-            ''
+            getConfig('loggingLogGroupNames', 'LOGGING_LOG_GROUP_NAMES') || ''
         )
             .split(',')
             .map((name: string) => name.trim())
             .filter((name: string) => name.length > 0),
-        filterPattern:
-            app.node.tryGetContext('loggingFilterPattern') ||
-            process.env.LOGGING_FILTER_PATTERN,
+        filterPattern: getConfig('loggingFilterPattern', 'LOGGING_FILTER_PATTERN'),
     },
 });
 
@@ -255,72 +253,80 @@ services.forEach((service, index) => {
         },
         logging: {
             enabled:
-                (app.node.tryGetContext('loggingEnabled') ||
-                    process.env.LOGGING_ENABLED ||
-                    'true') === 'true',
-            centralDestinationArn:
-                app.node.tryGetContext('loggingCentralDestinationArn') ||
-                process.env.LOGGING_CENTRAL_DESTINATION_ARN,
-            filterPattern:
-                app.node.tryGetContext('loggingFilterPattern') ||
-                process.env.LOGGING_FILTER_PATTERN,
+                (getConfig('loggingEnabled', 'LOGGING_ENABLED') || 'true') === 'true',
+            centralDestinationArn: getConfig(
+                'loggingCentralDestinationArn',
+                'LOGGING_CENTRAL_DESTINATION_ARN'
+            ),
+            filterPattern: getConfig('loggingFilterPattern', 'LOGGING_FILTER_PATTERN'),
         },
         dpResilience: {
             enabled:
-                (app.node.tryGetContext('dpResilienceEnabled') ||
-                    process.env.DP_RESILIENCE_ENABLED ||
-                    'true') === 'true',
+                (getConfig('dpResilienceEnabled', 'DP_RESILIENCE_ENABLED') || 'true') ===
+                'true',
         },
         redis: {
             enabled:
-                (app.node.tryGetContext(`service${index + 1}RedisEnabled`) ||
-                    process.env[`SERVICE${index + 1}_REDIS_ENABLED`] ||
-                    'false') === 'true',
+                (getConfig(
+                    `service${index + 1}RedisEnabled`,
+                    `SERVICE${index + 1}_REDIS_ENABLED`
+                ) || 'false') === 'true',
             nodeType:
-                app.node.tryGetContext(`service${index + 1}RedisNodeType`) ||
-                process.env[`SERVICE${index + 1}_REDIS_NODE_TYPE`] ||
-                'cache.t4g.micro',
+                getConfig(
+                    `service${index + 1}RedisNodeType`,
+                    `SERVICE${index + 1}_REDIS_NODE_TYPE`
+                ) || 'cache.t4g.micro',
             numCacheNodes: Number(
-                app.node.tryGetContext(`service${index + 1}RedisNumCacheNodes`) ||
-                    process.env[`SERVICE${index + 1}_REDIS_NUM_CACHE_NODES`] ||
-                    1
+                getConfig(
+                    `service${index + 1}RedisNumCacheNodes`,
+                    `SERVICE${index + 1}_REDIS_NUM_CACHE_NODES`
+                ) || 1
             ),
             engineVersion:
-                app.node.tryGetContext(`service${index + 1}RedisEngineVersion`) ||
-                process.env[`SERVICE${index + 1}_REDIS_ENGINE_VERSION`] ||
-                '7.0',
+                getConfig(
+                    `service${index + 1}RedisEngineVersion`,
+                    `SERVICE${index + 1}_REDIS_ENGINE_VERSION`
+                ) || '7.0',
             parameterGroupFamily:
-                app.node.tryGetContext(`service${index + 1}RedisParameterGroupFamily`) ||
-                process.env[`SERVICE${index + 1}_REDIS_PARAMETER_GROUP_FAMILY`] ||
-                'redis7',
+                getConfig(
+                    `service${index + 1}RedisParameterGroupFamily`,
+                    `SERVICE${index + 1}_REDIS_PARAMETER_GROUP_FAMILY`
+                ) || 'redis7',
             encryptionAtRest:
-                (app.node.tryGetContext(`service${index + 1}RedisEncryptionAtRest`) ||
-                    process.env[`SERVICE${index + 1}_REDIS_ENCRYPTION_AT_REST`] ||
-                    'true') === 'true',
+                (getConfig(
+                    `service${index + 1}RedisEncryptionAtRest`,
+                    `SERVICE${index + 1}_REDIS_ENCRYPTION_AT_REST`
+                ) || 'true') === 'true',
             encryptionInTransit:
-                (app.node.tryGetContext(`service${index + 1}RedisEncryptionInTransit`) ||
-                    process.env[`SERVICE${index + 1}_REDIS_ENCRYPTION_IN_TRANSIT`] ||
-                    'true') === 'true',
+                (getConfig(
+                    `service${index + 1}RedisEncryptionInTransit`,
+                    `SERVICE${index + 1}_REDIS_ENCRYPTION_IN_TRANSIT`
+                ) || 'true') === 'true',
             multiAz:
-                (app.node.tryGetContext(`service${index + 1}RedisMultiAz`) ||
-                    process.env[`SERVICE${index + 1}_REDIS_MULTI_AZ`] ||
-                    'false') === 'true',
-            authToken:
-                app.node.tryGetContext(`service${index + 1}RedisAuthToken`) ||
-                process.env[`SERVICE${index + 1}_REDIS_AUTH_TOKEN`],
+                (getConfig(
+                    `service${index + 1}RedisMultiAz`,
+                    `SERVICE${index + 1}_REDIS_MULTI_AZ`
+                ) || 'false') === 'true',
+            authToken: getConfig(
+                `service${index + 1}RedisAuthToken`,
+                `SERVICE${index + 1}_REDIS_AUTH_TOKEN`
+            ),
             snapshotRetentionDays: Number(
-                app.node.tryGetContext(`service${index + 1}RedisSnapshotRetentionDays`) ||
-                    process.env[`SERVICE${index + 1}_REDIS_SNAPSHOT_RETENTION_DAYS`] ||
-                    5
+                getConfig(
+                    `service${index + 1}RedisSnapshotRetentionDays`,
+                    `SERVICE${index + 1}_REDIS_SNAPSHOT_RETENTION_DAYS`
+                ) || 5
             ),
             snapshotWindow:
-                app.node.tryGetContext(`service${index + 1}RedisSnapshotWindow`) ||
-                process.env[`SERVICE${index + 1}_REDIS_SNAPSHOT_WINDOW`] ||
-                '03:00-05:00',
+                getConfig(
+                    `service${index + 1}RedisSnapshotWindow`,
+                    `SERVICE${index + 1}_REDIS_SNAPSHOT_WINDOW`
+                ) || '03:00-05:00',
             maintenanceWindow:
-                app.node.tryGetContext(`service${index + 1}RedisMaintenanceWindow`) ||
-                process.env[`SERVICE${index + 1}_REDIS_MAINTENANCE_WINDOW`] ||
-                'sun:05:00-sun:07:00',
+                getConfig(
+                    `service${index + 1}RedisMaintenanceWindow`,
+                    `SERVICE${index + 1}_REDIS_MAINTENANCE_WINDOW`
+                ) || 'sun:05:00-sun:07:00',
         },
     });
 

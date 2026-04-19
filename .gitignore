@@ -13,5 +13,9 @@ cdk.out
 # Claude workspace settings
 .claude/
 
+# Environment-specific configuration files (keep .example files)
+config/*.json
+!config/*.json.example
+
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
