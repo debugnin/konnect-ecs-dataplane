@@ -6,8 +6,6 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 
 ![Kong Konnect ECS Architecture](kong-konnect-ecs-architecture.png)
 
-> ⚠️ **Important**: Shared infrastructure uses the `kong-` prefix, while service-specific resources use the service name (from `SERVICE{N}_NAME`) as the system identifier. You must specify `ENVIRONMENT` (dev, qa, uat, prd) when deploying. See [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) for details.
-
 ## Features
 
 ### 🌍 Multi-Service Architecture
@@ -23,9 +21,6 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 
 - **Primary & secondary regions**: Deploy to any two AWS regions for geographic redundancy
 - **Automated Route53 failover**: Primary region creates health checks, secondary region acts as standby
-- **Independent regional ALBs**: Each region has its own complete infrastructure stack
-- **1-2 minute failover**: Automatic detection and failover when primary health check fails
-- **No manual configuration**: Routes, health checks, and failover policies are automatically configured
 - See [MULTI_REGION_SETUP.md](MULTI_REGION_SETUP.md) for details
 
 ### 🔒 Security
@@ -44,9 +39,6 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - **S3 configuration backup**: Control plane config automatically exported to S3
 - **CP outage recovery**: New DP nodes can start during control plane outages by reading from S3
 - **Dedicated backup nodes**: Separate backup node exports config (not serving traffic)
-- **Leader election**: Multiple backup nodes coordinate via S3-based leader election
-- **Automatic fallback**: DP nodes check S3 when unable to reach control plane
-- **KMS encryption**: Optional S3 bucket encryption with customer-managed keys
 - See [DP_RESILIENCE_SETUP.md](DP_RESILIENCE_SETUP.md) for configuration
 
 ### 🏗️ Infrastructure Components
@@ -87,88 +79,6 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): Service deployment and management
 - [LOGGING_SETUP.md](LOGGING_SETUP.md): CloudWatch log streaming configuration
 - [REDIS_SETUP.md](REDIS_SETUP.md): Redis (ElastiCache) configuration for rate limiting and caching
-
-## Architecture
-
-```mermaid
-graph TB
-    subgraph "Kong Konnect SaaS"
-        CP[Control Plane<br/><your-cp-id>.region.cp0.konghq.com:443]
-        TP[Telemetry Plane<br/><your-cp-id>.region.tp0.konghq.com:443]
-    end
-
-    subgraph "AWS Cloud"
-        subgraph "Infrastructure Stack"
-            subgraph "VPC"
-                subgraph "Public Subnets"
-                    ALB[Application Load Balancer<br/>Data Plane]
-                    NAT[NAT Gateway]
-                end
-
-                subgraph "Private Subnets"
-                    TG[Target Group<br/>Port: 8000]
-                end
-            end
-
-            WAF[WAF<br/>Rate Limiting & Rules]
-        end
-
-        subgraph "ECS Stack"
-            subgraph "ECS Cluster"
-                DP1[Kong DP Container<br/>Proxy: 8000<br/>Status: 8100]
-                DP2[Kong DP Container<br/>Proxy: 8000<br/>Status: 8100]
-            end
-        end
-
-        subgraph "AWS Secrets Manager"
-            SEC[Client Certificate Secret<br/>- certificate<br/>- private_key<br/>- control_plane_group_endpoint<br/>- telemetry_endpoint]
-        end
-
-        subgraph "CloudWatch Logs"
-            LOG[Data Plane Logs<br/>/ecs/kong-data-plane]
-        end
-    end
-
-    subgraph "Internet"
-        USER[API Clients]
-    end
-
-    %% External connections
-    USER --> WAF
-    WAF --> ALB
-
-    %% Load balancer connections
-    ALB --> TG
-    TG --> DP1
-    TG --> DP2
-
-    %% Konnect connections
-    DP1 -.->|mTLS| CP
-    DP2 -.->|mTLS| CP
-    DP1 -.->|Telemetry| TP
-    DP2 -.->|Telemetry| TP
-
-    %% Secrets connections
-    DP1 -.-> SEC
-    DP2 -.-> SEC
-
-    %% Logging connections
-    DP1 -.-> LOG
-    DP2 -.-> LOG
-
-    %% Styling
-    classDef aws fill:#ff9900,stroke:#232f3e,stroke-width:2px,color:#fff
-    classDef kong fill:#003459,stroke:#00d4aa,stroke-width:2px,color:#fff
-    classDef konnect fill:#00d4aa,stroke:#003459,stroke-width:2px,color:#000
-    classDef secrets fill:#dd344c,stroke:#232f3e,stroke-width:2px,color:#fff
-    classDef external fill:#232f3e,stroke:#00d4aa,stroke-width:2px,color:#fff
-
-    class ALB,NAT,TG,WAF aws
-    class DP1,DP2 kong
-    class CP,TP konnect
-    class SEC secrets
-    class USER external
-```
 
 ### Components
 
