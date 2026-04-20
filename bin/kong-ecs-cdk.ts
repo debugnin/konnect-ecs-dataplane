@@ -222,8 +222,8 @@ const serviceStacks: KongServiceStack[] = [];
 
 services.forEach((service, index) => {
     const serviceStackName = regionalSuffix
-        ? `kong-${service.serviceName}-service-stack-${environment}-${regionalSuffix}`
-        : `kong-${service.serviceName}-service-stack-${environment}`;
+        ? `kong-service-stack-${service.serviceName}-${environment}-${regionalSuffix}`
+        : `kong-service-stack-${service.serviceName}-${environment}`;
 
     if (!infraStack.albConstruct.httpsListener) {
         throw new Error(

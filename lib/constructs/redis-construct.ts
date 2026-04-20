@@ -46,7 +46,6 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elasticache from 'aws-cdk-lib/aws-elasticache';
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 export interface RedisConstructProps {
     /**
@@ -158,7 +157,6 @@ export class RedisConstruct extends Construct {
     public readonly cluster: elasticache.CfnReplicationGroup;
     public readonly securityGroup: ec2.SecurityGroup;
     public readonly subnetGroup: elasticache.CfnSubnetGroup;
-    public readonly authTokenSecret?: secretsmanager.ISecret;
     public readonly primaryEndpoint: string;
     public readonly readerEndpoint?: string;
     public readonly port: number = 6379;
@@ -228,35 +226,6 @@ export class RedisConstruct extends Construct {
             );
         });
 
-        // Handle auth token for encryption in transit
-        let finalAuthToken: string | undefined;
-        if (encryptionInTransit) {
-            if (authToken) {
-                // Use provided auth token
-                finalAuthToken = authToken;
-            } else {
-                // Generate auth token and store in Secrets Manager
-                const generatedSecret = new secretsmanager.Secret(
-                    this,
-                    'RedisAuthToken',
-                    {
-                        description: `Redis auth token for Kong ${serviceName} (${this.environmentName})`,
-                        secretName: `kong-${serviceName}-redis-auth-token-${this.environmentName}`,
-                        generateSecretString: {
-                            excludePunctuation: true,
-                            passwordLength: 32,
-                        },
-                    }
-                );
-                this.authTokenSecret = generatedSecret;
-                finalAuthToken = generatedSecret.secretValue.unsafeUnwrap();
-            }
-
-            // Validate auth token length
-            if (finalAuthToken && finalAuthToken.length < 16) {
-                throw new Error('Redis auth token must be at least 16 characters');
-            }
-        }
 
         // Create parameter group for Redis configuration
         const parameterGroup = new elasticache.CfnParameterGroup(
@@ -291,7 +260,7 @@ export class RedisConstruct extends Construct {
             // Encryption
             atRestEncryptionEnabled: encryptionAtRest,
             transitEncryptionEnabled: encryptionInTransit,
-            authToken: finalAuthToken,
+            authToken: authToken,
             // Backup configuration
             snapshotRetentionLimit: snapshotRetentionDays,
             snapshotWindow: snapshotRetentionDays > 0 ? snapshotWindow : undefined,
@@ -356,12 +325,5 @@ export class RedisConstruct extends Construct {
             });
         }
 
-        if (this.authTokenSecret) {
-            new cdk.CfnOutput(this, 'RedisAuthTokenSecretArn', {
-                description: `Redis auth token secret ARN for ${serviceName}`,
-                value: this.authTokenSecret.secretArn,
-                exportName: `kong-${serviceName}-redis-auth-token-secret-arn-${this.environmentName}`,
-            });
-        }
     }
 }
