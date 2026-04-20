@@ -61,7 +61,7 @@ export class DataPlaneResilienceConstruct extends Construct {
 
         // Create S3 bucket for Kong configuration backups
         this.bucket = new s3.Bucket(this, 'DpConfigBucket', {
-            bucketName: `${this.component}-kong-dpconfig-s3-${this.environmentName}`,
+            bucketName: `kong-dpconfig-s3-${this.component}-${this.environmentName}`,
             encryption: s3.BucketEncryption.S3_MANAGED,
             blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
             versioned: true, // Enable versioning for config history

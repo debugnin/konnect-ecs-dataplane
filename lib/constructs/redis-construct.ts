@@ -197,14 +197,14 @@ export class RedisConstruct extends Construct {
         this.subnetGroup = new elasticache.CfnSubnetGroup(this, 'RedisSubnetGroup', {
             description: `Redis subnet group for Kong ${serviceName} (${this.environmentName})`,
             subnetIds: vpc.privateSubnets.map((subnet) => subnet.subnetId),
-            cacheSubnetGroupName: `kong-${serviceName}-redis-subnet-group-${this.environmentName}`,
+            cacheSubnetGroupName: `kong-redis-subnet-group-${serviceName}-${this.environmentName}`,
         });
 
         // Create security group for Redis
         this.securityGroup = new ec2.SecurityGroup(this, 'RedisSecurityGroup', {
             vpc,
             description: `Security group for Kong ${serviceName} Redis cluster (${this.environmentName})`,
-            securityGroupName: `kong-${serviceName}-redis-sg-${this.environmentName}`,
+            securityGroupName: `kong-redis-sg-${serviceName}-${this.environmentName}`,
             allowAllOutbound: false, // Redis doesn't need outbound traffic
         });
 
@@ -245,7 +245,7 @@ export class RedisConstruct extends Construct {
 
         // Create Redis Replication Group (supports both single-node and multi-node)
         this.cluster = new elasticache.CfnReplicationGroup(this, 'RedisCluster', {
-            replicationGroupId: `kong-${serviceName}-redis-${this.environmentName}`,
+            replicationGroupId: `kong-redis-${serviceName}-${this.environmentName}`,
             replicationGroupDescription: `Kong ${serviceName} Redis cluster (${this.environmentName})`,
             engine: 'redis',
             engineVersion,
@@ -271,7 +271,7 @@ export class RedisConstruct extends Construct {
             tags: [
                 {
                     key: 'Name',
-                    value: `kong-${serviceName}-redis-${this.environmentName}`,
+                    value: `kong-redis-${serviceName}-${this.environmentName}`,
                 },
                 {
                     key: 'Service',
@@ -308,20 +308,20 @@ export class RedisConstruct extends Construct {
         new cdk.CfnOutput(this, 'RedisPrimaryEndpoint', {
             description: `Redis primary endpoint address for ${serviceName}`,
             value: this.primaryEndpoint,
-            exportName: `kong-${serviceName}-redis-primary-endpoint-${this.environmentName}`,
+            exportName: `kong-redis-primary-endpoint-${serviceName}-${this.environmentName}`,
         });
 
         new cdk.CfnOutput(this, 'RedisPort', {
             description: 'Redis port',
             value: this.port.toString(),
-            exportName: `kong-${serviceName}-redis-port-${this.environmentName}`,
+            exportName: `kong-redis-port-${serviceName}-${this.environmentName}`,
         });
 
         if (this.readerEndpoint) {
             new cdk.CfnOutput(this, 'RedisReaderEndpoint', {
                 description: `Redis reader endpoint address for ${serviceName}`,
                 value: this.readerEndpoint,
-                exportName: `kong-${serviceName}-redis-reader-endpoint-${this.environmentName}`,
+                exportName: `kong-redis-reader-endpoint-${serviceName}-${this.environmentName}`,
             });
         }
 
