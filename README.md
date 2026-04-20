@@ -2,6 +2,10 @@
 
 Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as the managed control plane.
 
+## Architecture
+
+![Kong Konnect ECS Architecture](kong-konnect-ecs-architecture.png)
+
 > ⚠️ **Important**: Shared infrastructure uses the `kong-` prefix, while service-specific resources use the service name (from `SERVICE{N}_NAME`) as the system identifier. You must specify `ENVIRONMENT` (dev, qa, uat, prd) when deploying. See [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) for details.
 
 ## Features
