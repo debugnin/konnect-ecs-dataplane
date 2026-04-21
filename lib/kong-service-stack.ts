@@ -320,27 +320,6 @@ export class KongServiceStack extends cdk.Stack {
                 description: 'Kong Cluster Fallback Config Storage URL',
             });
 
-            new cdk.CfnOutput(this, 'RequiredIAMPermissions', {
-                value: JSON.stringify({
-                    Statement: [
-                        {
-                            Effect: 'Allow',
-                            Action: [
-                                's3:GetObject',
-                                's3:PutObject',
-                                's3:DeleteObject',
-                                's3:ListBucket',
-                            ],
-                            Resource: [
-                                this.dpResilienceConstruct!.bucket.bucketArn,
-                                `${this.dpResilienceConstruct!.bucket.bucketArn}/*`,
-                            ],
-                        },
-                    ],
-                }),
-                description:
-                    'IAM permissions required for ECS task execution role (S3 read/write for DP resilience)',
-            });
         }
     }
 
