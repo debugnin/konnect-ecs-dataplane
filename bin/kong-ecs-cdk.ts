@@ -167,6 +167,9 @@ const infraStack = new KongInfrastructureStack(app, infraStackName, {
             .split(',')
             .map((cidr: string) => cidr.trim())
             .filter((cidr: string) => cidr.length > 0),
+        konnectPrivateLinkEnabled:
+            (getConfig('konnectPrivateLinkEnabled', 'KONNECT_PRIVATELINK_ENABLED') || 'false') === 'true',
+        konnectGeo: getConfig('konnectGeo', 'KONNECT_GEO'),
     },
     certificate: albDomain
         ? {

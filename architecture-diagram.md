@@ -1,5 +1,7 @@
 # Kong Konnect ECS Data Plane — Architecture Diagram
 
+![Kong Konnect ECS Architecture](kong-konnect-ecs-architecture.png)
+
 ```mermaid
 graph TB
     subgraph INTERNET["Internet"]

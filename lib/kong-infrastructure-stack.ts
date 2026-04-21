@@ -19,6 +19,8 @@ export interface KongInfrastructureStackProps extends cdk.StackProps {
         enableVpcEndpoints?: boolean;
         transitGatewayId?: string;
         transitGatewayRoutes?: string[];
+        konnectPrivateLinkEnabled?: boolean;
+        konnectGeo?: string; // US | EU | AU | SG | IN | ME | GLOBAL
     };
 
     // Certificate Configuration
@@ -79,6 +81,8 @@ export class KongInfrastructureStack extends cdk.Stack {
             enableVpcEndpoints: props.vpc?.enableVpcEndpoints,
             transitGatewayId: props.vpc?.transitGatewayId,
             transitGatewayRoutes: props.vpc?.transitGatewayRoutes,
+            konnectPrivateLinkEnabled: props.vpc?.konnectPrivateLinkEnabled,
+            konnectGeo: props.vpc?.konnectGeo,
         });
 
         // Create Certificate for ALB if domain is provided (regional)
