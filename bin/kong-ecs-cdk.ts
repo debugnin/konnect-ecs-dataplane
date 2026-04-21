@@ -248,6 +248,7 @@ services.forEach((service, index) => {
         mtlsListenerArn,
         albSecurityGroupId: infraStack.albConstruct.securityGroup.securityGroupId,
         kongLogLevel: service.logLevel || 'notice',
+        forceRefreshToken: getConfig('forceRefreshToken', 'FORCE_REFRESH_TOKEN') || undefined,
         dataPlane: {
             cpu: service.cpu,
             memoryMiB: service.memory,

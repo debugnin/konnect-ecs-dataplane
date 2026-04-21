@@ -39,6 +39,8 @@ export interface KongServiceStackProps extends cdk.StackProps {
     };
 
     kongLogLevel?: string; // Kong log level (default: notice)
+    // Set to any new value (e.g. a timestamp) to force ECS tasks to restart and re-read secrets
+    forceRefreshToken?: string;
 
     // Data Plane Resilience Configuration (S3 Config Backup)
     dpResilience?: {
@@ -88,6 +90,7 @@ export class KongServiceStack extends cdk.Stack {
     private readonly vpc: ec2.IVpc;
     private readonly mtlsListenerArn: string;
     private readonly albSecurityGroupId: string;
+    private readonly forceRefreshToken?: string;
     private readonly dpResilienceConfig?: {
         enabled?: boolean;
         bucketName?: string;
@@ -122,6 +125,7 @@ export class KongServiceStack extends cdk.Stack {
         this.mtlsListenerArn = props.mtlsListenerArn;
         this.albSecurityGroupId = props.albSecurityGroupId;
         this.dpResilienceConfig = props.dpResilience;
+        this.forceRefreshToken = props.forceRefreshToken;
 
         // Create or import IAM roles
         this.setupIamRoles(props);
@@ -505,6 +509,11 @@ export class KongServiceStack extends cdk.Stack {
                     // Regular nodes import config if CP is down
                     KONG_CLUSTER_FALLBACK_CONFIG_IMPORT: 'on',
                 }),
+                // Changing this value forces a new task definition revision so ECS restarts
+                // tasks and re-reads the latest secret values from Secrets Manager
+                ...(this.forceRefreshToken && {
+                    FORCE_REFRESH: this.forceRefreshToken,
+                }),
             },
             secrets: {
                 KONG_CLUSTER_CERT: ecs.Secret.fromSecretsManager(
@@ -642,6 +651,9 @@ export class KongServiceStack extends cdk.Stack {
                 KONG_CLUSTER_FALLBACK_CONFIG_STORAGE:
                     this.dpResilienceConstruct!.getStorageUrl(),
                 KONG_CLUSTER_FALLBACK_CONFIG_EXPORT: 'on',
+                ...(this.forceRefreshToken && {
+                    FORCE_REFRESH: this.forceRefreshToken,
+                }),
             },
             secrets: {
                 KONG_CLUSTER_CERT: ecs.Secret.fromSecretsManager(
