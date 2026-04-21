@@ -268,11 +268,6 @@ services.forEach((service, index) => {
                 (getConfig('dpResilienceEnabled', 'DP_RESILIENCE_ENABLED') || 'true') ===
                 'true',
         },
-        konnectPrivateLink: {
-            enabled:
-                (getConfig('konnectPrivateLinkEnabled', 'KONNECT_PRIVATELINK_ENABLED') || 'false') === 'true',
-            dnsName: infraStack.vpcConstruct.konnectPrivateLinkDnsName,
-        },
         redis: {
             enabled:
                 (getConfig(
