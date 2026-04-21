@@ -45,6 +45,12 @@ export interface KongServiceStackProps extends cdk.StackProps {
         enabled?: boolean;
     };
 
+    // Konnect PrivateLink — overrides cluster server name env vars with geo DNS hostname
+    konnectPrivateLink?: {
+        enabled?: boolean;
+        dnsName?: string; // e.g. us.svc.konghq.com — used for KONG_CLUSTER_SERVER_NAME and KONG_CLUSTER_TELEMETRY_SERVER_NAME
+    };
+
     // Redis Configuration (ElastiCache) - Per Service
     redis?: {
         enabled?: boolean;
@@ -94,6 +100,8 @@ export class KongServiceStack extends cdk.Stack {
         configPrefix?: string;
         kmsKeyArn?: string;
     };
+    private readonly konnectPrivateLinkEnabled: boolean;
+    private readonly konnectPrivateLinkDnsName?: string;
 
     constructor(scope: Construct, id: string, props: KongServiceStackProps) {
         super(scope, id, props);
@@ -123,6 +131,8 @@ export class KongServiceStack extends cdk.Stack {
         this.mtlsListenerArn = props.mtlsListenerArn;
         this.albSecurityGroupId = props.albSecurityGroupId;
         this.dpResilienceConfig = props.dpResilience;
+        this.konnectPrivateLinkEnabled = props.konnectPrivateLink?.enabled ?? false;
+        this.konnectPrivateLinkDnsName = props.konnectPrivateLink?.dnsName;
 
         // Create or import IAM roles
         this.setupIamRoles(props);
@@ -506,6 +516,12 @@ export class KongServiceStack extends cdk.Stack {
                     // Regular nodes import config if CP is down
                     KONG_CLUSTER_FALLBACK_CONFIG_IMPORT: 'on',
                 }),
+                // When PrivateLink is enabled, override server names with the geo DNS hostname for TLS SNI
+                ...(this.konnectPrivateLinkEnabled &&
+                    this.konnectPrivateLinkDnsName && {
+                        KONG_CLUSTER_SERVER_NAME: this.konnectPrivateLinkDnsName,
+                        KONG_CLUSTER_TELEMETRY_SERVER_NAME: this.konnectPrivateLinkDnsName,
+                    }),
             },
             secrets: {
                 KONG_CLUSTER_CERT: ecs.Secret.fromSecretsManager(
@@ -520,17 +536,20 @@ export class KongServiceStack extends cdk.Stack {
                     konnectSecret,
                     'control_plane_group_endpoint'
                 ),
-                KONG_CLUSTER_SERVER_NAME: ecs.Secret.fromSecretsManager(
-                    konnectSecret,
-                    'cluster_server_name'
-                ),
+                // Omitted when PrivateLink is enabled — set as plain env vars above instead
+                ...(!this.konnectPrivateLinkEnabled && {
+                    KONG_CLUSTER_SERVER_NAME: ecs.Secret.fromSecretsManager(
+                        konnectSecret,
+                        'cluster_server_name'
+                    ),
+                    KONG_CLUSTER_TELEMETRY_SERVER_NAME: ecs.Secret.fromSecretsManager(
+                        konnectSecret,
+                        'telemetry_server_name'
+                    ),
+                }),
                 KONG_CLUSTER_TELEMETRY_ENDPOINT: ecs.Secret.fromSecretsManager(
                     konnectSecret,
                     'telemetry_endpoint'
-                ),
-                KONG_CLUSTER_TELEMETRY_SERVER_NAME: ecs.Secret.fromSecretsManager(
-                    konnectSecret,
-                    'telemetry_server_name'
                 ),
                 // Use cluster certificate for proxy SSL
                 KONG_SSL_CERT: ecs.Secret.fromSecretsManager(

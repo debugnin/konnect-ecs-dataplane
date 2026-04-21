@@ -138,6 +138,7 @@ export class VpcConstruct extends Construct {
     public readonly vpc: ec2.Vpc;
     public readonly flowLogGroup?: logs.LogGroup;
     public readonly transitGatewayAttachment?: ec2.CfnTransitGatewayAttachment;
+    public readonly konnectPrivateLinkDnsName?: string;
     private readonly environmentName: string;
 
     constructor(scope: Construct, id: string, props: VpcConstructProps) {
@@ -302,6 +303,8 @@ export class VpcConstruct extends Construct {
                 privateDnsEnabled: true,
                 securityGroups: [privateLinkSg],
             });
+
+            this.konnectPrivateLinkDnsName = serviceInfo.dnsName;
 
             new cdk.CfnOutput(this, 'KonnectPrivateLinkDnsName', {
                 value: serviceInfo.dnsName,
