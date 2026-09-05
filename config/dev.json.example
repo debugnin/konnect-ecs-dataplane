@@ -1,0 +1,34 @@
+{
+    "environment": "dev",
+
+    "defaultKongImage": "kong/kong-gateway:3.9",
+
+    "service1Name": "customers",
+    "service1Path": "/customers",
+    "service1SecretArn": "arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-customers-cert-AbCdEf",
+    "service1Cpu": "512",
+    "service1Memory": "1024",
+    "service1Replicas": "2",
+    "service1LogLevel": "notice",
+    "service1RedisEnabled": "false",
+
+    "vpcCidr": "10.0.0.0/16",
+    "vpcMaxAzs": "2",
+    "vpcNatGateways": "1",
+    "vpcEnableFlowLogs": "true",
+    "vpcEnableEndpoints": "true",
+    "konnectPrivateLinkEnabled": "false",
+    "konnectGeo": "US",
+
+    "albDomain": "api.example.com",
+    "albHostedZoneId": "Z1234567890ABC",
+    "albHostedZoneName": "example.com",
+    "albEnableAccessLogs": "true",
+
+    "wafEnabled": "true",
+    "wafRateLimit": "2000",
+    "wafAllowedCidrs": "203.0.113.0/24,198.51.100.0/24",
+    "wafEnableCidrRestriction": "true",
+
+    "dpResilienceEnabled": "true"
+}

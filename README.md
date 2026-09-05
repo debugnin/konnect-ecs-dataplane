@@ -137,20 +137,66 @@ This CDK project deploys two types of stacks:
       }'
     ```
 
-2. **Deploy the stacks**:
+2. **Create your environment configuration file**:
+
+    ```bash
+    cp config/dev.json.example config/dev.json
+    # Edit config/dev.json with your service, VPC, and secret ARN values
+    ```
+
+3. **Deploy the stacks**:
 
     ```bash
     npm install
     npm run build
 
     # Both stacks are deployed together (infrastructure first, then ECS)
-    KONNECT_CONTROL_PLANE_SECRET_ARN="arn:aws:secretsmanager:region:account:secret:name" \
-    npx cdk deploy --all
+    ENVIRONMENT=dev npx cdk deploy --all
     ```
 
 **Note**: The infrastructure stack (VPC, ALB, WAF) is always created first, and the ECS stack depends on it. Both stacks are deployed together.
 
 ## Configuration
+
+### Configuration Files (Recommended)
+
+Deployments are configured via `config/{environment}.json`, keyed by the `ENVIRONMENT` variable (e.g. `ENVIRONMENT=dev` loads `config/dev.json`). Configuration is resolved with the following precedence (highest to lowest):
+
+1. `config/{environment}.json` — environment-specific configuration file
+2. `cdk.context.json` — CDK context values
+3. Environment variables — see the table below for the mapping
+
+Config file keys are the camelCase equivalent of the environment variables in the table below (e.g. `SERVICE1_NAME` → `service1Name`, `WAF_ALLOWED_CIDRS` → `wafAllowedCidrs`). Actual config files (`config/*.json`) are git-ignored since they contain secret ARNs and domain names; only `config/*.json.example` is tracked. See [config/README.md](config/README.md) for full details.
+
+Example `config/dev.json`:
+
+```json
+{
+    "environment": "dev",
+    "defaultKongImage": "kong/kong-gateway:3.9",
+
+    "service1Name": "customers",
+    "service1Path": "/customers",
+    "service1SecretArn": "arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-customers-cert",
+    "service1Cpu": "512",
+    "service1Memory": "1024",
+    "service1Replicas": "2",
+
+    "vpcMaxAzs": "2",
+    "albDomain": "api.example.com",
+    "albHostedZoneId": "Z1234567890ABC",
+    "albHostedZoneName": "example.com",
+
+    "wafEnabled": "true",
+    "wafAllowedCidrs": "203.0.113.0/24,198.51.100.0/24"
+}
+```
+
+Deploy with:
+
+```bash
+ENVIRONMENT=dev npx cdk deploy --all
+```
 
 ### Environment Variables
 
@@ -174,14 +220,24 @@ This CDK project deploys two types of stacks:
 | `ALB_HOSTED_ZONE_ID`          | Route 53 Hosted Zone ID for ALB            | No       |
 | `ALB_HOSTED_ZONE_NAME`        | Route 53 Hosted Zone Name for ALB          | No       |
 
-**Note**: Use `SERVICE{N}_*` variables where `{N}` is the service number (1, 2, 3, etc.). IAM role creation is not supported - you must provide pre-existing ECS Task Execution and Task Role ARNs (shared across all services).
+**Note**: Use `SERVICE{N}_*` variables where `{N}` is the service number (1, 2, 3, etc.). IAM role creation is not supported - you must provide pre-existing ECS Task Execution and Task Role ARNs (shared across all services). These variables are the lowest-precedence configuration source — prefer a [configuration file](#configuration-files-recommended) for anything beyond quick local testing.
 
 **\*\*REGIONAL_SUFFIX**: Automatically set by the pipeline to `secondary` for Melbourne deployment. Primary region (Sydney) uses default stack names without suffix. For manual deployments to secondary region, set `REGIONAL_SUFFIX=secondary`.
 
 ### Example Deployments
 
+**Using a config file (recommended)**:
+
+```bash
+# config/dev.json contains service1Name, service1Path, service1SecretArn, albDomain, etc.
+ENVIRONMENT=dev npx cdk deploy --all
+```
+
+**Using environment variables only**:
+
 ```bash
 # Basic deployment (both stacks)
+ENVIRONMENT=dev \
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-cert-AbCdEf" \
@@ -191,6 +247,7 @@ ALB_HOSTED_ZONE_NAME="example.com" \
 npx cdk deploy --all
 
 # Custom configuration with multiple services
+ENVIRONMENT=dev \
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-customers-cert" \
