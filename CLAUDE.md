@@ -50,7 +50,7 @@ The entry point `bin/kong-ecs-cdk.ts` reads config and instantiates all stacks. 
 2. `cdk.context.json`
 3. Environment variables (lowest)
 
-The `ENVIRONMENT` context/env var is required and drives both naming and config file selection. Stack names follow `kong-infra-stack-{env}` and `kong-service-stack-{service}-{env}` patterns. Set `REGIONAL_SUFFIX=secondary` for multi-region secondary deployments.
+The `ENVIRONMENT` context/env var is required and drives both naming and config file selection. Stack names follow `kong-infra-stack-{env}` and `kong-service-stack-{service}-{env}` patterns.
 
 ## Key Design Decisions
 

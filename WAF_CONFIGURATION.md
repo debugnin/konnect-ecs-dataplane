@@ -245,10 +245,6 @@ The WAF will revert to the default "Allow" action with managed rules still activ
 
 ## Architecture Notes
 
-### Multi-Region Deployments
-
-For multi-region deployments, a separate **ALB WAF** is deployed per region (e.g., ap-southeast-2, ap-southeast-4). Both use the same CIDR configuration from environment variables.
-
 ### WAF Rule Priority
 
 WAF rules are evaluated in priority order:
@@ -287,5 +283,4 @@ Enabling CIDR restriction adds:
 
 - [AWS WAF Documentation](https://docs.aws.amazon.com/waf/)
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - General deployment guide
-- [MULTI_REGION_SETUP.md](MULTI_REGION_SETUP.md) - Multi-region deployment
 - [README.md](README.md) - Project overview

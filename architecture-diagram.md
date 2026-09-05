@@ -12,13 +12,8 @@ graph TB
         KONNECT_CP[Konnect Control Plane\nCluster + Telemetry Endpoints\nManaged by Kong]
     end
 
-    subgraph PRIMARY["AWS Primary Region — Infrastructure + Service Stacks"]
-        subgraph R53_PRIMARY["Route53 — Failover DNS"]
-            R53_ALB_P[ALB record\nFAILOVER PRIMARY]
-            R53_HC[Health Check\nHTTPS /health\n30s interval]
-        end
-
-        subgraph VPC["VPC  —  Primary Region"]
+    subgraph REGION["AWS Region — Infrastructure + Service Stacks"]
+        subgraph VPC["VPC"]
             subgraph PUBLIC["Public Subnets"]
                 ALB[Application Load Balancer\nInternet-facing\nPort 443 — mTLS]
                 NAT[NAT Gateway\nOutbound internet]
@@ -36,6 +31,11 @@ graph TB
                     SM_EP[Secrets Manager]
                     CW_EP[CloudWatch Logs]
                     S3_EP[S3 Gateway]
+                    KONNECT_PL[Konnect PrivateLink\nInterface Endpoint :443\nOptional — per region/geo]
+                end
+
+                subgraph REDIS_GROUP["ElastiCache — per service, optional"]
+                    REDIS1[Redis Replication Group\nkong-{service}-redis\nPort 6379]
                 end
             end
         end
@@ -43,16 +43,12 @@ graph TB
         subgraph REGIONAL_SERVICES["Regional AWS Services"]
             ALB_CERT[ACM Certificate\nALB domain]
             ALB_WAF[WAF — Regional scope\nManaged Rules\nRate Limiting\nCIDR Restriction]
+            R53_RECORD[Route53 Alias Record\nALB custom domain]
             SM[Secrets Manager\nKonnect cluster cert + key\nKonnect CP endpoints\nKong SSL cert + key]
             S3_DP[S3 Bucket — DP Resilience\nKong config snapshots\nVersioned  7-day retention\nKMS encrypted]
             S3_LOGS[S3 Bucket — ALB access logs\nWAF logs\n30-day retention]
             CW_LOGS[CloudWatch Logs\nECS task logs\nVPC flow logs\n1-week retention]
         end
-    end
-
-    subgraph SECONDARY["AWS Secondary Region — Mirror Stack"]
-        R53_ALB_S[ALB record\nFAILOVER SECONDARY]
-        VPC2[VPC + ALB + ECS\nidentical configuration]
     end
 
     subgraph CENTRAL_ACCT["Central AWS Account — Logging"]
@@ -73,6 +69,12 @@ graph TB
     DP1 -->|cluster mTLS\ntelemetry| KONNECT_CP
     DP2 -->|cluster mTLS\ntelemetry| KONNECT_CP
     BACKUP -->|cluster mTLS\nreceives config updates| KONNECT_CP
+
+    %% Konnect PrivateLink (optional) — Konnect DNS name resolves privately in-VPC instead of via NAT/internet
+    KONNECT_PL -.->|private connectivity\nno NAT/internet, optional| KONNECT_CP
+
+    %% Redis (optional, per service) — rate limiting / caching / session storage
+    DP1 & DP2 -.->|rate limiting / caching / sessions\nport 6379, optional| REDIS1
 
     %% DP Resilience
     BACKUP -->|KONG_CLUSTER_FALLBACK_CONFIG_EXPORT=on\nwrites config snapshot| S3_DP
@@ -95,11 +97,8 @@ graph TB
     CW_LOGS -->|subscription filter| CENTRAL_LOG
     ALB -.->|access logs| S3_LOGS
 
-    %% Route53 failover
-    R53_HC -.->|monitors| ALB
-    R53_ALB_P -.->|primary failover record| VPC
-    R53_ALB_S -.->|secondary failover record| VPC2
-    R53_ALB_P -.->|failover pair| R53_ALB_S
+    %% Route53
+    R53_RECORD -.->|alias target| ALB
 
     %% Styling
     classDef aws fill:#ff9900,stroke:#232f3e,stroke-width:2px,color:#fff
@@ -108,14 +107,15 @@ graph TB
     classDef external fill:#232f3e,stroke:#00d4aa,stroke-width:2px,color:#fff
     classDef storage fill:#3f48cc,stroke:#232f3e,stroke-width:2px,color:#fff
     classDef saas fill:#00d4aa,stroke:#003459,stroke-width:2px,color:#003459
+    classDef cache fill:#c925d1,stroke:#232f3e,stroke-width:2px,color:#fff
 
-    class ALB,NAT,ALB_CERT,ECR_EP,SM_EP,CW_EP,S3_EP,R53_HC,R53_ALB_P,R53_ALB_S aws
+    class ALB,NAT,ALB_CERT,ECR_EP,SM_EP,CW_EP,S3_EP,KONNECT_PL,R53_RECORD aws
     class DP1,DP2,BACKUP kong
     class ALB_WAF,SM security
     class CLIENT external
     class S3_DP,S3_LOGS,CW_LOGS,CENTRAL_LOG storage
     class KONNECT_CP saas
-    class VPC2 aws
+    class REDIS1 cache
 ```
 
 ## Component Details
@@ -128,10 +128,11 @@ All API clients connect directly to the ALB on port 443 using mTLS — client ce
 
 #### Infrastructure Stack (regional)
 - **VPC**: Public + private subnets, NAT Gateway, VPC interface endpoints (ECR, Secrets Manager, CloudWatch Logs) and S3 gateway endpoint; optional Transit Gateway attachment
+- **Konnect PrivateLink (optional)**: When `KONNECT_PRIVATELINK_ENABLED=true` and `KONNECT_GEO` is set, a VPC Interface Endpoint (port 443, region/geo-specific Kong service name) is created in the private subnets with `privateDnsEnabled: true`. This causes the Konnect hostname already read from the secret (e.g. `us.svc.konghq.com`) to resolve privately inside the VPC, so CP/telemetry traffic reaches Konnect without traversing the NAT Gateway or public internet — no Kong DP task configuration changes are needed
 - **Application Load Balancer**: Internet-facing; port 443 with mTLS trust store validation
 - **ACM Certificate**: Covers the ALB custom domain, DNS-validated via Route53
 - **WAF (Regional scope)**: AWS Managed Rules (Common, Known Bad Inputs, IP Reputation), rate limiting (default 2000 req/min, HTTP 429), optional CIDR allowlist
-- **Route53 Failover**: Health check on HTTPS `/health`; primary region is FAILOVER PRIMARY, secondary is FAILOVER SECONDARY — automatic DNS cutover on health check failure
+- **Route53 Alias Record**: DNS record for the ALB's custom domain
 
 #### Service Stack (one per service, regional)
 - **ECS Cluster**: Fargate ARM64; configurable CPU (default 512 units), memory (default 1024 MiB), replicas (default 2)
@@ -139,6 +140,7 @@ All API clients connect directly to the ALB on port 443 using mTLS — client ce
 - **Backup Node**: 1 replica, not registered with ALB; exports Kong config to S3 (`KONG_CLUSTER_FALLBACK_CONFIG_EXPORT=on`); regular DP tasks import on startup if CP is unreachable
 - **ALB Listener Rules**: Path-based routing on port 443 mTLS listener (e.g. `/customers`, `/customers/*`)
 - **IAM Roles**: Task execution role (pull images, read secrets, S3 access for DP resilience); task role (CloudWatch Logs, S3, Lambda invoke for AWS Lambda plugin, STS AssumeRole)
+- **Redis / ElastiCache (optional, per service)**: When `SERVICE{N}_REDIS_ENABLED=true`, a dedicated Redis replication group is created for that service in the private subnets (own subnet group), for use as a rate-limiting store, cache, or session store from Kong plugins. Its security group allows inbound traffic on port 6379 only from the service's own Kong data plane tasks
 
 ### Security Layers
 
@@ -146,10 +148,7 @@ All API clients connect directly to the ALB on port 443 using mTLS — client ce
 2. **mTLS (port 443)** — client certificates validated against an ACM Private CA trust store
 3. **Konnect cluster mTLS** — Kong DP authenticates to Konnect using PKI certificates stored in Secrets Manager
 4. **VPC Endpoints** — ECR image pulls, Secrets Manager reads, CloudWatch writes, S3 access all stay within the VPC
-
-### Multi-Region Failover
-
-Both primary and secondary regions deploy identical Infrastructure and Service stacks. A Route53 health check monitors `HTTPS /health` on the ALB every 30 seconds; three consecutive failures trigger automatic DNS failover to the secondary region.
+5. **Konnect PrivateLink (optional)** — CP/telemetry traffic can bypass the public internet entirely via a VPC Interface Endpoint
 
 ### Data Plane Resilience
 

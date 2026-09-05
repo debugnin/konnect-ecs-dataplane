@@ -17,12 +17,6 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - **Service isolation**: Separate ECS clusters and target groups for each service
 - **Per-service Redis**: Optional Redis cluster per service for rate limiting, caching, and session storage
 
-### 🌐 Multi-Region High Availability
-
-- **Primary & secondary regions**: Deploy to any two AWS regions for geographic redundancy
-- **Automated Route53 failover**: Primary region creates health checks, secondary region acts as standby
-- See [MULTI_REGION_SETUP.md](MULTI_REGION_SETUP.md) for details
-
 ### 🔒 Security
 
 - **WAF protection**: Rate limiting, AWS Managed Rules, and custom IP restrictions
@@ -50,7 +44,7 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - **NAT Gateways**: Configurable number for private subnet internet access
 - **Application Load Balancer**: Regional ALB with HTTPS/mTLS listeners
 - **ACM Certificates**: Automatic certificate validation via Route53
-- **Route53 DNS**: Automated failover records with health checks
+- **Route53 DNS**: Alias record for the ALB custom domain
 
 ### 📊 Monitoring & Logging
 
@@ -66,14 +60,12 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - **CloudFormation parameters**: Update container images without CDK redeployment
 - **Cross-account deployments**: Support for plugin deployment from separate accounts
 - **Environment-based naming**: Resources tagged with environment (dev, qa, uat, prd)
-- **Regional suffixes**: Clear stack naming for multi-region deployments
 - **CDK Stack Synthesizer**: Custom qualifier for bootstrap isolation
 - See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for deployment workflows
 
 ### 📝 Documentation
 
 - [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md): Resource naming patterns and conventions
-- [MULTI_REGION_SETUP.md](MULTI_REGION_SETUP.md): Multi-region deployment guide
 - [WAF_CONFIGURATION.md](WAF_CONFIGURATION.md): WAF and CIDR restriction setup
 - [DP_RESILIENCE_SETUP.md](DP_RESILIENCE_SETUP.md): Data plane resilience configuration
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): Service deployment and management
@@ -93,7 +85,7 @@ This CDK project deploys two types of stacks:
 - **Transit Gateway**: Optional integration for hybrid cloud connectivity
 - **Application Load Balancer**: Regional ALB with HTTPS (443) and mTLS listeners
 - **ACM Certificate**: Automatic SSL/TLS certificate with Route53 validation
-- **Route53 Records**: Automated failover records with health checks (multi-region)
+- **Route53 Records**: Alias record for the ALB custom domain
 - **WAF**: Web Application Firewall with rate limiting, AWS Managed Rules, CIDR restrictions
 
 #### Service Stacks (Per Service)
@@ -173,7 +165,7 @@ Example `config/dev.json`:
 ```json
 {
     "environment": "dev",
-    "defaultKongImage": "kong/kong-gateway:3.9",
+    "defaultKongImage": "kong/kong-gateway:3.15",
 
     "service1Name": "customers",
     "service1Path": "/customers",
@@ -208,9 +200,7 @@ ENVIRONMENT=dev npx cdk deploy --all
 | `SERVICE{N}_CPU`              | Data plane CPU units (default: 512)        | No       |
 | `SERVICE{N}_MEMORY`           | Data plane memory MiB (default: 1024)      | No       |
 | `SERVICE{N}_REPLICAS`         | Number of data plane tasks (default: 2)    | No       |
-| `AWS_DEFAULT_REGION`          | Primary region (default: ap-southeast-2)   | No       |
-| `AWS_SECONDARY_REGION`        | Secondary region (default: ap-southeast-4) | No       |
-| `REGIONAL_SUFFIX`             | Stack name suffix for secondary region     | No\*\*   |
+| `AWS_DEFAULT_REGION`          | Deployment region (default: ap-southeast-2)| No       |
 | `VPC_MAX_AZS`                 | Number of availability zones (default: 2)  | No       |
 | `WAF_ENABLED`                 | Enable WAF protection (default: true)      | No       |
 | `WAF_ALLOWED_CIDRS`           | Comma-separated allowed CIDRs              | No       |
@@ -221,8 +211,6 @@ ENVIRONMENT=dev npx cdk deploy --all
 | `ALB_HOSTED_ZONE_NAME`        | Route 53 Hosted Zone Name for ALB          | No       |
 
 **Note**: Use `SERVICE{N}_*` variables where `{N}` is the service number (1, 2, 3, etc.). IAM role creation is not supported - you must provide pre-existing ECS Task Execution and Task Role ARNs (shared across all services). These variables are the lowest-precedence configuration source — prefer a [configuration file](#configuration-files-recommended) for anything beyond quick local testing.
-
-**\*\*REGIONAL_SUFFIX**: Automatically set by the pipeline to `secondary` for Melbourne deployment. Primary region (Sydney) uses default stack names without suffix. For manual deployments to secondary region, set `REGIONAL_SUFFIX=secondary`.
 
 ### Example Deployments
 

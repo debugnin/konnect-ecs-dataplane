@@ -17,7 +17,6 @@ export interface AlbConstructProps {
     mtlsTrustStoreArn?: string;
     webAclArn?: string;
     enableAccessLogs?: boolean;
-    regionalSuffix?: string; // Empty for primary region, 'secondary' for secondary (used for automated failover)
 }
 
 export class AlbConstruct extends Construct {
@@ -41,11 +40,7 @@ export class AlbConstruct extends Construct {
             mtlsTrustStoreArn,
             webAclArn,
             enableAccessLogs = true,
-            regionalSuffix = '',
         } = props;
-
-        // Determine if this is primary (no suffix) or secondary (has suffix)
-        const isPrimary = !regionalSuffix;
 
         // Security Group - Allow traffic from anywhere (WAF handles IP filtering)
         this.securityGroup = new ec2.SecurityGroup(this, 'AlbSecurityGroup', {
@@ -99,31 +94,7 @@ export class AlbConstruct extends Construct {
         // Create HTTPS Listeners (without default target groups - will be added by service stacks)
         this.createHttpsListeners(certificateArn!, mtlsTrustStoreArn);
 
-        // Create Route 53 health check for primary region ALB (for automated failover)
-        let healthCheckId: string | undefined;
-        if (isPrimary && customDomain && (hostedZoneId || hostedZoneName)) {
-            const healthCheck = new route53.CfnHealthCheck(this, 'AlbHealthCheck', {
-                healthCheckConfig: {
-                    type: 'HTTPS',
-                    fullyQualifiedDomainName: customDomain,
-                    port: 443,
-                    resourcePath: '/health',
-                    requestInterval: 30,
-                    failureThreshold: 3,
-                },
-                healthCheckTags: [
-                    {
-                        key: 'Name',
-                        value: `${customDomain}-alb-primary-health-check`,
-                    },
-                ],
-            });
-            healthCheckId = healthCheck.attrHealthCheckId;
-        }
-
-        // Create Route 53 DNS record with automated failover routing for ALB
-        // Primary region uses FAILOVER PRIMARY with health check
-        // Secondary region uses FAILOVER SECONDARY (activated when primary fails)
+        // Create Route 53 alias record for the ALB
         if (customDomain && (hostedZoneId || hostedZoneName)) {
             const hostedZone = hostedZoneId
                 ? route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
@@ -139,19 +110,12 @@ export class AlbConstruct extends Construct {
             const isApexDomain = customDomain === zoneName;
             const recordName = isApexDomain ? zoneName : customDomain;
 
-            // Use CfnRecordSet (L1) for failover routing support
-            new route53.CfnRecordSet(this, 'AlbAliasRecord', {
-                hostedZoneId: hostedZone.hostedZoneId,
-                name: recordName,
-                type: 'A',
-                setIdentifier: isPrimary ? 'ALB-Primary' : 'ALB-Secondary',
-                failover: isPrimary ? 'PRIMARY' : 'SECONDARY',
-                healthCheckId: healthCheckId,
-                aliasTarget: {
-                    hostedZoneId: this.loadBalancer.loadBalancerCanonicalHostedZoneId,
-                    dnsName: this.loadBalancer.loadBalancerDnsName,
-                    evaluateTargetHealth: false, // Use Route53 health check instead
-                },
+            new route53.ARecord(this, 'AlbAliasRecord', {
+                zone: hostedZone,
+                recordName,
+                target: route53.RecordTarget.fromAlias(
+                    new route53targets.LoadBalancerTarget(this.loadBalancer)
+                ),
             });
         }
 
@@ -164,19 +128,6 @@ export class AlbConstruct extends Construct {
         new cdk.CfnOutput(this, 'LoadBalancerArn', {
             value: this.loadBalancer.loadBalancerArn,
             description: 'ALB ARN',
-        });
-
-        // Output health check ID for primary region
-        if (healthCheckId) {
-            new cdk.CfnOutput(this, 'AlbHealthCheckId', {
-                value: healthCheckId,
-                description: 'Route53 Health Check ID for ALB (Primary Region)',
-            });
-        }
-
-        new cdk.CfnOutput(this, 'AlbFailoverType', {
-            value: isPrimary ? 'PRIMARY' : 'SECONDARY',
-            description: 'Route53 Failover Type for ALB',
         });
     }
 

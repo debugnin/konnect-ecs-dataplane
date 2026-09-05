@@ -1,7 +1,7 @@
 {
     "environment": "dev",
 
-    "defaultKongImage": "kong/kong-gateway:3.9",
+    "defaultKongImage": "kong/kong-gateway:3.15",
 
     "service1Name": "customers",
     "service1Path": "/customers",

@@ -173,33 +173,6 @@ This creates:
 - ECS Clusters: `customers-kong-ecscluster-prd` and `bookings-kong-ecscluster-prd`
 - Target Groups: `customers-kong-tg-prd` and `bookings-kong-tg-prd`
 
-## Multi-Region Deployment
-
-For multi-region deployments with failover:
-
-```bash
-# Primary region (Sydney)
-export ENVIRONMENT=prd
-export SERVICE1_NAME="customers"
-export SERVICE1_PATH="/customers"
-export SERVICE1_SECRET_ARN="..."
-export REGIONAL_SUFFIX=""
-npx cdk deploy --all
-
-# Secondary region (Melbourne)
-export ENVIRONMENT=prd
-export SERVICE1_NAME="customers"
-export SERVICE1_PATH="/customers"
-export SERVICE1_SECRET_ARN="..."
-export REGIONAL_SUFFIX="secondary"
-npx cdk deploy --all
-```
-
-Stack names:
-
-- Primary: `kong-infra-stack`, `customers-service-stack`
-- Secondary: `kong-infra-stack-secondary`, `customers-service-stack-secondary`
-
 ## S3 Bucket Naming
 
 S3 bucket names follow the service-specific pattern and must be globally unique. If using DP Resilience:

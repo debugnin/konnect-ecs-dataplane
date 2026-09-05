@@ -68,9 +68,6 @@ export class KongInfrastructureStack extends cdk.Stack {
 
         this.environmentName = props.environment;
 
-        // Get regional suffix for multi-region deployments
-        const regionalSuffix = this.node.tryGetContext('regionalSuffix') || '';
-
         // Create VPC with Flow Logs (CloudWatch Logs) and VPC Endpoints
         this.vpcConstruct = new VpcConstruct(this, 'VpcConstruct', {
             environment: this.environmentName,
@@ -117,9 +114,7 @@ export class KongInfrastructureStack extends cdk.Stack {
             });
         }
 
-        // Create ALB with automated Route53 failover
-        // Primary region (no suffix): Creates ALB with FAILOVER PRIMARY + health check
-        // Secondary region (with suffix): Creates ALB with FAILOVER SECONDARY
+        // Create ALB with a Route53 alias record for the custom domain
         this.albConstruct = new AlbConstruct(this, 'AlbConstruct', {
             vpc: this.vpcConstruct.vpc,
             environment: this.environmentName,
@@ -130,7 +125,6 @@ export class KongInfrastructureStack extends cdk.Stack {
             mtlsTrustStoreArn: props.alb?.mtlsTrustStoreArn,
             webAclArn: albWafConstruct?.webAcl.attrArn,
             enableAccessLogs: props.alb?.enableAccessLogs,
-            regionalSuffix: regionalSuffix,
         });
 
         // Create Log Streaming to Central Account (via Subscription Filters)

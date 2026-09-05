@@ -127,10 +127,7 @@ if (services.length === 0) {
 // Parameterise stack names following naming convention
 // Infrastructure is shared, so use "kong" as the system name
 // Service stacks use the serviceName as the system identifier
-const regionalSuffix = getConfig('regionalSuffix', 'REGIONAL_SUFFIX') || '';
-const infraStackName = regionalSuffix
-    ? `kong-infra-stack-${environment}-${regionalSuffix}`
-    : `kong-infra-stack-${environment}`;
+const infraStackName = `kong-infra-stack-${environment}`;
 
 const env = {
     account: process.env.CDK_DEFAULT_ACCOUNT,
@@ -224,9 +221,7 @@ const infraStack = new KongInfrastructureStack(app, infraStackName, {
 const serviceStacks: KongServiceStack[] = [];
 
 services.forEach((service, index) => {
-    const serviceStackName = regionalSuffix
-        ? `kong-service-stack-${service.serviceName}-${environment}-${regionalSuffix}`
-        : `kong-service-stack-${service.serviceName}-${environment}`;
+    const serviceStackName = `kong-service-stack-${service.serviceName}-${environment}`;
 
     if (!infraStack.albConstruct.httpsListener) {
         throw new Error(
