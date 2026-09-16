@@ -71,6 +71,8 @@ Deploy Kong Gateway data plane on AWS ECS Fargate, connecting to Kong Konnect as
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): Service deployment and management
 - [LOGGING_SETUP.md](LOGGING_SETUP.md): CloudWatch log streaming configuration
 - [REDIS_SETUP.md](REDIS_SETUP.md): Redis (ElastiCache) configuration for rate limiting and caching
+- [scripts/README.md](scripts/README.md): Automates creating the Konnect DP client cert + AWS Secrets Manager secret
+- [konnect-terraform-example](https://github.com/debugnin/konnect-terraform-example): Terraform to provision a Konnect control plane (control plane, sample service/route/plugin)
 
 ### Components
 
@@ -109,14 +111,38 @@ This CDK project deploys two types of stacks:
 
 - AWS CLI configured
 - Node.js and npm installed
-- Kong Konnect account with client certificate
-- Client certificate stored in AWS Secrets Manager
+- `jq` and `openssl` installed (used by the secret-creation script below)
+- A Kong Konnect account and a **control plane** already created
+  - Don't have one yet? Use [konnect-terraform-example](https://github.com/debugnin/konnect-terraform-example) to provision a Konnect control plane (plus a sample service/route/plugin) via Terraform in a few minutes
+- Kong Konnect DP client certificate stored in AWS Secrets Manager (see Quick Start below)
 
 ## Quick Start
 
-1. **Store client certificate in Secrets Manager**:
+0. **(If you don't have a control plane yet)** Provision one with Terraform using [konnect-terraform-example](https://github.com/debugnin/konnect-terraform-example):
 
     ```bash
+    git clone https://github.com/debugnin/konnect-terraform-example
+    cd konnect-terraform-example
+    export KONNECT_TOKEN="kpat_your-token-here"
+    terraform init
+    terraform apply
+    ```
+
+1. **Create the DP client certificate + Secrets Manager secret**
+
+    Use the bundled [`scripts/create-konnect-secret.sh`](scripts/create-konnect-secret.sh) to generate the mTLS client cert, register it with your Konnect control plane, resolve the control plane's cluster/telemetry endpoints, and write everything to AWS Secrets Manager in one step:
+
+    ```bash
+    export KONNECT_TOKEN="kpat_your-token-here"
+
+    ./scripts/create-konnect-secret.sh --control-plane-name "Sample Control Plane"
+    # -> creates/updates secret "kong-sample-control-plane-cert" and prints its ARN
+    ```
+
+    See [scripts/README.md](scripts/README.md) for the full option list (custom secret name, bring-your-own cert, `--dry-run`, etc.). This replaces the need to hand-craft the secret JSON manually:
+
+    ```bash
+    # Manual alternative, if you already have a cert/key and endpoints:
     aws secretsmanager create-secret \
       --name "kong-konnect-client-cert" \
       --secret-string '{
