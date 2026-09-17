@@ -73,7 +73,7 @@ export SERVICE1_REDIS_ENGINE_VERSION=7.0  # Default
 export SERVICE1_REDIS_PARAMETER_GROUP_FAMILY=redis7  # Must match engine version
 
 # Deploy infrastructure and services
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 ### Production Configuration (Multi-AZ with Replication)
@@ -89,7 +89,7 @@ export SERVICE1_REDIS_ENCRYPTION_AT_REST=true  # Default
 export SERVICE1_REDIS_ENCRYPTION_IN_TRANSIT=true  # Default
 export SERVICE1_REDIS_SNAPSHOT_RETENTION_DAYS=7  # Daily backups for 7 days
 
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 ### Multiple Services with Different Redis Configurations
@@ -112,7 +112,7 @@ export SERVICE2_REDIS_MULTI_AZ=false
 # Service 3 (payments) - No Redis
 export SERVICE3_REDIS_ENABLED=false
 
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 ## Environment Variables
@@ -423,7 +423,7 @@ export SERVICE1_REDIS_SNAPSHOT_RETENTION_DAYS=7
 
 1. Ensure `REDIS_NUM_CACHE_NODES >= 2`
 2. Set `REDIS_MULTI_AZ=true`
-3. Redeploy stack: `npm run cdk -- deploy --all`
+3. Redeploy stack: `npx cdk deploy --all`
 
 ## Cleanup
 
@@ -431,7 +431,7 @@ To disable Redis for a service and remove the cluster:
 
 ```bash
 export SERVICE1_REDIS_ENABLED=false
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 **Warning**: This will delete the Redis cluster for that service and all cached data. Final snapshot will be created automatically.

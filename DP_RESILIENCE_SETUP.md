@@ -107,14 +107,14 @@ SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:ap-southeast-2:ACCOUNT:secret:kong-customers-cert" \
 SERVICE1_REPLICAS=3 \
 DP_RESILIENCE_ENABLED=true \
-npm run cdk -- deploy KongKonnectStack-Service-customers
+npx cdk deploy KongKonnectStack-Service-customers
 ```
 
 #### Deploy Multiple Services with Resilience
 
 ```bash
 # Infrastructure stack
-npm run cdk -- deploy KongKonnectStack-Infrastructure
+npx cdk deploy KongKonnectStack-Infrastructure
 
 # Service 1: Customers API (3 regular nodes + 1 backup)
 SERVICE1_NAME="customers" \
@@ -122,7 +122,7 @@ SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:...:kong-customers-cert" \
 SERVICE1_REPLICAS=3 \
 DP_RESILIENCE_ENABLED=true \
-npm run cdk -- deploy KongKonnectStack-Service-customers
+npx cdk deploy KongKonnectStack-Service-customers
 
 # Service 2: Bookings API (2 regular nodes + 1 backup)
 SERVICE2_NAME="bookings" \
@@ -130,7 +130,7 @@ SERVICE2_PATH="/bookings" \
 SERVICE2_SECRET_ARN="arn:aws:secretsmanager:...:kong-bookings-cert" \
 SERVICE2_REPLICAS=2 \
 DP_RESILIENCE_ENABLED=true \
-npm run cdk -- deploy KongKonnectStack-Service-bookings
+npx cdk deploy KongKonnectStack-Service-bookings
 ```
 
 #### Deploy Service WITHOUT DP Resilience
@@ -142,7 +142,7 @@ SERVICE1_PATH="/legacy" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:...:kong-legacy-cert" \
 SERVICE1_REPLICAS=2 \
 DP_RESILIENCE_ENABLED=false \
-npm run cdk -- deploy KongKonnectStack-Service-legacy
+npx cdk deploy KongKonnectStack-Service-legacy
 ```
 
 ## Generated Resources

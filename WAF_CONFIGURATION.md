@@ -77,20 +77,20 @@ WAF_ALLOWED_CIDRS="10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" \
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:aws:secretsmanager:..." \
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 #### Option 3: CDK Context
 
 ```bash
-npm run cdk -- deploy --all \
+npx cdk deploy --all \
   --context wafAllowedCidrs="203.0.113.0/24,198.51.100.0/24"
 ```
 
 To disable CIDR restriction:
 
 ```bash
-npm run cdk -- deploy --all \
+npx cdk deploy --all \
   --context wafEnableCidrRestriction=false
 ```
 
@@ -189,7 +189,7 @@ To update the allowed CIDR list:
 1. Update the `WAF_ALLOWED_CIDRS` environment variable
 2. Redeploy the stack:
     ```bash
-    npm run cdk -- deploy kong-infra-stack-${ENVIRONMENT}
+    npx cdk deploy kong-infra-stack-${ENVIRONMENT}
     ```
 
 The IP Set in WAF will be updated with the new CIDRs.

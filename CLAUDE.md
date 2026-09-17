@@ -12,9 +12,9 @@ AWS CDK (TypeScript) project that deploys Kong Gateway data planes on ECS Fargat
 npm run build        # Compile TypeScript
 npm run watch        # Watch and compile
 npm run test         # Run Jest tests
-npm run cdk -- synth        # Generate CloudFormation templates
-npm run cdk -- diff         # Show pending changes
-npm run cdk -- deploy --all # Deploy all stacks
+npx cdk synth        # Generate CloudFormation templates
+npx cdk diff         # Show pending changes
+npx cdk deploy --all # Deploy all stacks
 ```
 
 Single test:
@@ -24,8 +24,8 @@ npx jest --testPathPattern="kong-ecs"
 
 Deploy requires `ENVIRONMENT` and at least one service:
 ```bash
-ENVIRONMENT=dev npm run cdk -- synth
-ENVIRONMENT=dev SERVICE1_NAME=customers SERVICE1_PATH=/customers SERVICE1_SECRET_ARN=arn:... npm run cdk -- deploy --all
+ENVIRONMENT=dev npx cdk synth
+ENVIRONMENT=dev SERVICE1_NAME=customers SERVICE1_PATH=/customers SERVICE1_SECRET_ARN=arn:... npx cdk deploy --all
 ```
 
 ## Architecture

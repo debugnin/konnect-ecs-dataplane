@@ -55,7 +55,7 @@ export SERVICE1_PATH="/customers"
 export SERVICE1_SECRET_ARN="arn:aws:secretsmanager:..."
 
 # Deploy
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 ### Multi-Environment Deployment
@@ -66,14 +66,14 @@ export ENVIRONMENT=dev
 export SERVICE1_NAME="customers"
 export SERVICE1_PATH="/customers"
 export SERVICE1_SECRET_ARN="..."
-npm run cdk -- deploy --all
+npx cdk deploy --all
 
 # Production
 export ENVIRONMENT=prd
 export SERVICE1_NAME="customers"
 export SERVICE1_PATH="/customers"
 export SERVICE1_SECRET_ARN="..."
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 ## Resource Naming Examples
@@ -155,7 +155,7 @@ export SERVICE2_NAME="bookings"
 export SERVICE2_PATH="/bookings"
 export SERVICE2_SECRET_ARN="..."
 
-npm run cdk -- deploy --all
+npx cdk deploy --all
 ```
 
 This creates:
@@ -240,7 +240,7 @@ If invalid values are provided, deployment will fail with a clear error message.
 Alternatively, you can use CDK context instead of environment variables:
 
 ```bash
-npm run cdk -- deploy --all \
+npx cdk deploy --all \
   --context system=customers \
   --context environment=dev \
   --context service1Name=api \

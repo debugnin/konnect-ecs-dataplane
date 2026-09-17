@@ -209,7 +209,7 @@ Or set environment variables in your pipeline:
 # Optional: Add service logs
 - export LOGGING_LOG_GROUP_NAMES='/ecs/kong-data-plane-customers'
 
-- npm run cdk deploy KongKonnectStack-Infrastructure -- --require-approval never
+- npx cdk deploy KongKonnectStack-Infrastructure --require-approval never
 ```
 
 ## Verification
