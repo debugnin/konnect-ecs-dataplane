@@ -462,7 +462,6 @@ export class KongServiceStack extends cdk.Stack {
                 KONG_PROXY_LISTEN: '0.0.0.0:8443 http2 ssl reuseport backlog=16384',
                 KONG_STATUS_LISTEN: '0.0.0.0:8100',
                 KONG_CLUSTER_MTLS: 'pki',
-                KONG_CLUSTER_DP_LABELS: 'type:docker-kubernetesOS',
                 KONG_LUA_SSL_TRUSTED_CERTIFICATE: 'system',
                 KONG_KONNECT_MODE: 'on',
                 KONG_VITALS: 'off',
