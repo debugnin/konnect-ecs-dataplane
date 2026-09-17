@@ -109,12 +109,44 @@ This CDK project deploys two types of stacks:
 
 ## Prerequisites
 
-- AWS CLI configured
-- Node.js and npm installed
-- `jq` and `openssl` installed (used by the secret-creation script below)
-- A Kong Konnect account and a **control plane** already created
+### Accounts & Access
+
+- **AWS account** with permissions to create VPC, ECS, ALB, WAF, Secrets Manager, IAM, Route53, ACM, and CloudWatch resources
+- **AWS CLI** installed and configured with credentials for that account (`aws sts get-caller-identity` should succeed)
+- **Kong Konnect account** and a **control plane** already created
   - Don't have one yet? Use [konnect-terraform-example](https://github.com/debugnin/konnect-terraform-example) to provision a Konnect control plane (plus a sample service/route/plugin) via Terraform in a few minutes
 - Kong Konnect DP client certificate stored in AWS Secrets Manager (see Quick Start below)
+
+### Local Tooling
+
+| Tool | Purpose |
+|---|---|
+| [Node.js](https://nodejs.org/) (v18+) and npm | Run the CDK app |
+| `npx` (bundled with npm ≥ 5.2) | Invoke the AWS CDK CLI (`npx cdk ...`) without a global install |
+| [AWS CDK CLI](https://docs.aws.amazon.com/cdk/v2/guide/getting-started.html) | Deploy the stacks (installed automatically on first `npx cdk` invocation, or install globally with `npm install -g aws-cdk`) |
+| `jq` and `openssl` | Used by [`scripts/create-konnect-secret.sh`](scripts/create-konnect-secret.sh) |
+| [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.0 | Only needed if provisioning the control plane via [konnect-terraform-example](https://github.com/debugnin/konnect-terraform-example) |
+
+### CDK Bootstrap (one-time per AWS account/region)
+
+Before your **first** deployment to any given AWS account + region combination, that account/region must be [CDK-bootstrapped](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) — this provisions the S3 bucket, IAM roles, and ECR repo the CDK CLI needs to deploy stacks:
+
+```bash
+npx cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
+# e.g.
+npx cdk bootstrap aws://123456789012/ap-southeast-2
+```
+
+Check whether an account/region is already bootstrapped:
+
+```bash
+aws cloudformation describe-stacks --stack-name CDKToolkit --region <REGION> \
+  --query "Stacks[0].StackStatus" --output text
+```
+
+If that returns `CREATE_COMPLETE` or `UPDATE_COMPLETE`, you're good — otherwise run the bootstrap command above. See the [official CDK bootstrapping guide](https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping.html) for details (custom qualifiers, cross-account trust, etc.).
+
+> ⚠️ Bootstrapping is required **per region** — deploying to a new region (e.g. testing in `ap-southeast-2` after previously deploying to `us-east-1`) requires bootstrapping that region too, even if the same account is already bootstrapped elsewhere.
 
 ## Quick Start
 
@@ -163,6 +195,8 @@ This CDK project deploys two types of stacks:
     ```
 
 3. **Deploy the stacks**:
+
+    > First time deploying to this AWS account/region? Make sure it's [CDK-bootstrapped](#cdk-bootstrap-one-time-per-aws-accountregion) first, or this step will fail.
 
     ```bash
     npm install
