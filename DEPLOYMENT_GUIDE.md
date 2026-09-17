@@ -86,7 +86,7 @@ Edit `config/dev.json` to configure infrastructure and one or more services:
 npm run build
 
 # ENVIRONMENT selects config/dev.json
-ENVIRONMENT=dev npx cdk deploy --all
+ENVIRONMENT=dev npm run cdk -- deploy --all
 ```
 
 **Note**: The infrastructure stack (VPC, ALB, WAF) is always created first, and service stacks depend on it. Both are deployed together with `--all`.
@@ -153,10 +153,10 @@ To add a new service after initial deployment, add its keys to `config/{environm
 Then deploy only the new service stack:
 
 ```bash
-ENVIRONMENT=dev npx cdk deploy kong-service-stack-payments-dev
+ENVIRONMENT=dev npm run cdk -- deploy kong-service-stack-payments-dev
 ```
 
-(Or `npx cdk deploy --all` to reconcile everything, including the new service.)
+(Or `npm run cdk -- deploy --all` to reconcile everything, including the new service.)
 
 ## Stack Outputs
 
@@ -239,7 +239,7 @@ export SERVICE2_MEMORY=1024
 export SERVICE2_REPLICAS=2
 
 npm run build
-npx cdk deploy --all
+npm run cdk -- deploy --all
 ```
 
 If both a config file and matching environment variables are present, **the config file value wins**.

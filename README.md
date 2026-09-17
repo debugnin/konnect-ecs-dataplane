@@ -169,7 +169,7 @@ This CDK project deploys two types of stacks:
     npm run build
 
     # Both stacks are deployed together (infrastructure first, then ECS)
-    ENVIRONMENT=dev npx cdk deploy --all
+    ENVIRONMENT=dev npm run cdk -- deploy --all
     ```
 
 **Note**: The infrastructure stack (VPC, ALB, WAF) is always created first, and the ECS stack depends on it. Both stacks are deployed together.
@@ -213,7 +213,7 @@ Example `config/dev.json`:
 Deploy with:
 
 ```bash
-ENVIRONMENT=dev npx cdk deploy --all
+ENVIRONMENT=dev npm run cdk -- deploy --all
 ```
 
 ### Environment Variables
@@ -244,7 +244,7 @@ ENVIRONMENT=dev npx cdk deploy --all
 
 ```bash
 # config/dev.json contains service1Name, service1Path, service1SecretArn, albDomain, etc.
-ENVIRONMENT=dev npx cdk deploy --all
+ENVIRONMENT=dev npm run cdk -- deploy --all
 ```
 
 **Using environment variables only**:
@@ -258,7 +258,7 @@ SERVICE1_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-c
 ALB_DOMAIN="api.example.com" \
 ALB_HOSTED_ZONE_ID="Z1234567890ABC" \
 ALB_HOSTED_ZONE_NAME="example.com" \
-npx cdk deploy --all
+npm run cdk -- deploy --all
 
 # Custom configuration with multiple services
 ENVIRONMENT=dev \
@@ -274,7 +274,7 @@ SERVICE2_SECRET_ARN="arn:aws:secretsmanager:us-east-1:123456789012:secret:kong-b
 ALB_DOMAIN="api.example.com" \
 ALB_HOSTED_ZONE_ID="Z1234567890ABC" \
 ALB_HOSTED_ZONE_NAME="example.com" \
-npx cdk deploy
+npm run cdk -- deploy
 
 ```
 
@@ -319,16 +319,16 @@ npm run watch
 npm run test
 
 # Deploy stack
-npx cdk deploy
+npm run cdk -- deploy
 
 # View differences
-npx cdk diff
+npm run cdk -- diff
 
 # Generate CloudFormation
-npx cdk synth
+npm run cdk -- synth
 
 # Destroy stack
-npx cdk destroy
+npm run cdk -- destroy
 ```
 
 ## Troubleshooting
@@ -372,7 +372,7 @@ WAF_ALLOWED_CIDRS="10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" \
 SERVICE1_NAME="customers" \
 SERVICE1_PATH="/customers" \
 SERVICE1_SECRET_ARN="arn:..." \
-npx cdk deploy --all
+npm run cdk -- deploy --all
 ```
 
 **How it works:**

@@ -19,12 +19,12 @@ This directory contains environment-specific configuration files for the Kong Ko
 
 3. Deploy using the configuration:
     ```bash
-    npm run cdk deploy -- -c environment=dev --all
+    npm run cdk -- deploy -c environment=dev --all
     ```
     or
     ```bash
     export ENVIRONMENT=dev
-    npm run cdk deploy --all
+    npm run cdk -- deploy --all
     ```
 
 ## Configuration Priority
@@ -61,5 +61,5 @@ To create a configuration for a new environment:
 
 3. Deploy:
     ```bash
-    npm run cdk deploy -- -c environment=newenv --all
+    npm run cdk -- deploy -c environment=newenv --all
     ```
